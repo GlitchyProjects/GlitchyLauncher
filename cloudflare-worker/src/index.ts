@@ -1,4 +1,4 @@
-﻿export interface Env {
+export interface Env {
   ENVIRONMENT: string;
   DB?: D1Database;
 }
@@ -113,6 +113,46 @@ function isDisposableEmail(email: string): boolean {
 function isValidEmail(email: string): boolean {
   const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
   return emailRegex.test(email);
+}
+
+// Anti-Profanity & Swear Word Filter
+const PROFANITY_PATTERNS = [
+  'کیر', 'کص', 'کسکش', 'کونکش', 'کونی', 'کون', 'جنده', 'مادرجنده', 'ننه جنده', 'دیوث', 'سکس', 'سکسی',
+  'بیناموس', 'بی ناموس', 'حرومزاده', 'حرامزاده', 'لاشی', 'پدرسگ', 'پدر سگ', 'خواهرکسه', 'خارکسه', 'خارکسته',
+  'خایه', 'خایه مال', 'ساک زدن', 'کسخول', 'کسخل', 'کوس', 'کوست', 'چوچول', 'شاش', 'عن', 'گوه',
+  'مادرقحبه', 'قحبه', 'سیکتیر', 'سیک تیر', 'بکیرم', 'بکیر', 'بکصم', 'کسشر', 'کسشعر', 'کصشعر', 'کصشر',
+  'kir', 'kos', 'koss', 'koon', 'jende', 'jendeh', 'dayoos', 'dayus', 'binamoos', 'haroomzade', 'lashi',
+  'pedarsag', 'kharkose', 'khaye', 'shash', 'gooh', 'sik', 'siktir', 'koonkesh', 'koskesh',
+  'fuck', 'fucking', 'bitch', 'asshole', 'dick', 'pussy', 'whore', 'slut', 'cunt', 'nigger', 'nigga'
+];
+
+function containsProfanity(text: string): boolean {
+  if (!text) return false;
+  const raw = text.toLowerCase();
+  let normalized = raw
+    .replace(/[يك]/g, (c) => (c === 'ي' ? 'ی' : 'ک'))
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[._\-*#@!+=~`|\\/:;,?^%$()[\]{}<>"]/g, '');
+
+  const collapsed = normalized.replace(/(.)\1{2,}/g, '$1$1');
+
+  for (const pattern of PROFANITY_PATTERNS) {
+    if (normalized.includes(pattern) || collapsed.includes(pattern)) {
+      return true;
+    }
+  }
+
+  const words = raw.split(/\s+/);
+  for (const word of words) {
+    const cleanWord = word.replace(/[^\p{L}\p{N}]/gu, '');
+    for (const pattern of PROFANITY_PATTERNS) {
+      if (cleanWord === pattern) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 // PBKDF2 Password Hashing
@@ -612,29 +652,271 @@ export default {
       }
     }
 
-    // 9. Chat messages API (legacy compatibility)
-    if (url.pathname === '/api/chat/messages') {
-      if (request.method === 'GET') {
-        const channel = url.searchParams.get('channel') || 'global';
-        const filtered = messages.filter((m) => m.channelId === channel).slice(-100);
-        return Response.json({ success: true, messages: filtered }, { headers: CORS_HEADERS });
-      }
-
-      if (request.method === 'POST') {
+    // 9. Chat Messages API (D1 Backed with Profanity Filter)
+    if (url.pathname === '/api/chat/messages' && request.method === 'GET') {
+      const channel = url.searchParams.get('channel') || 'global';
+      const since = parseInt(url.searchParams.get('since') || '0', 10);
+      if (env.DB) {
         try {
-          const body = (await request.json()) as any;
-          if (!body.text || !body.sender?.username) {
-            return Response.json({ success: false, error: 'Invalid payload' }, { status: 400, headers: CORS_HEADERS });
-          }
-          body.timestamp = Date.now();
-          body.id = msg__;
-          messages.push(body);
-          if (messages.length > 500) messages.shift();
-          return Response.json({ success: true, message: body }, { headers: CORS_HEADERS });
-        } catch {
-          return Response.json({ success: false, error: 'Invalid JSON' }, { status: 400, headers: CORS_HEADERS });
+          const rows = await env.DB.prepare(
+            'SELECT * FROM chat_messages WHERE channel_id = ?1 AND timestamp > ?2 ORDER BY timestamp ASC LIMIT 100'
+          )
+            .bind(channel, since)
+            .all();
+          const msgs = (rows.results || []).map((r: any) => ({
+            id: r.id,
+            channelId: r.channel_id,
+            text: r.text,
+            timestamp: r.timestamp,
+            sender: {
+              id: r.sender_id,
+              username: r.sender_username,
+              badge: r.sender_badge || 'عضو گلیچی',
+              model: r.sender_model || 'default',
+              avatarUrl: r.sender_avatar || undefined,
+            },
+          }));
+          return Response.json({ success: true, messages: msgs }, { headers: CORS_HEADERS });
+        } catch (e: any) {
+          console.error('D1 chat get error:', e);
         }
       }
+      return Response.json({ success: true, messages: [] }, { headers: CORS_HEADERS });
+    }
+
+    if (url.pathname === '/api/chat/messages' && request.method === 'POST') {
+      const authHeader = request.headers.get('Authorization') || '';
+      const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+      if (!token) {
+        return Response.json({ success: false, error: 'عدم احراز هویت' }, { status: 401, headers: CORS_HEADERS });
+      }
+      const user = await getSessionUser(env, token);
+      if (!user) {
+        return Response.json({ success: false, error: 'نشست کاربری نامعتبر است' }, { status: 401, headers: CORS_HEADERS });
+      }
+
+      try {
+        const body = (await request.json()) as { text: string; channelId?: string };
+        const text = (body.text || '').trim();
+        const channelId = body.channelId || 'global';
+
+        if (!text) {
+          return Response.json({ success: false, error: 'متن پیام خالی است' }, { status: 400, headers: CORS_HEADERS });
+        }
+        if (text.length > 500) {
+          return Response.json({ success: false, error: 'پیام نباید بیش از ۵۰۰ کاراکتر باشد' }, { status: 400, headers: CORS_HEADERS });
+        }
+
+        // Anti-Profanity check
+        if (containsProfanity(text)) {
+          return Response.json(
+            { success: false, error: 'پیام شما حاوی کلمات نامناسب است و ارسال نشد.' },
+            { status: 400, headers: CORS_HEADERS }
+          );
+        }
+
+        const msgId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const now = Date.now();
+
+        if (env.DB) {
+          await env.DB.prepare(
+            'INSERT INTO chat_messages (id, channel_id, sender_id, sender_username, sender_badge, sender_model, sender_avatar, text, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)'
+          )
+            .bind(
+              msgId,
+              channelId,
+              user.id,
+              user.username,
+              user.badge || 'عضو گلیچی',
+              user.skin_model || 'default',
+              user.skin_data || null,
+              text,
+              now
+            )
+            .run();
+        }
+
+        const createdMsg = {
+          id: msgId,
+          channelId,
+          text,
+          timestamp: now,
+          sender: {
+            id: user.id,
+            username: user.username,
+            badge: user.badge || 'عضو گلیچی',
+            model: user.skin_model || 'default',
+            avatarUrl: user.skin_data || undefined,
+          },
+        };
+
+        return Response.json({ success: true, message: createdMsg }, { headers: CORS_HEADERS });
+      } catch (err: any) {
+        return Response.json({ success: false, error: 'خطا در ثبت پیام: ' + err?.message }, { status: 500, headers: CORS_HEADERS });
+      }
+    }
+
+    // 10. Chat Groups API (Max 2 groups per user, D1 Backed)
+    if (url.pathname === '/api/chat/groups' && request.method === 'GET') {
+      if (env.DB) {
+        try {
+          const rows = await env.DB.prepare(
+            'SELECT * FROM chat_groups WHERE visibility = "public" ORDER BY created_at DESC LIMIT 50'
+          ).all();
+          const groups = (rows.results || []).map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            description: r.description || '',
+            ownerId: r.owner_id,
+            inviteCode: r.invite_code,
+            visibility: r.visibility,
+            membersCount: r.members_count || 1,
+            createdAt: r.created_at,
+          }));
+          return Response.json({ success: true, groups }, { headers: CORS_HEADERS });
+        } catch (e: any) {
+          console.error('D1 groups get error:', e);
+        }
+      }
+      return Response.json({ success: true, groups: [] }, { headers: CORS_HEADERS });
+    }
+
+    if (url.pathname === '/api/chat/groups' && request.method === 'POST') {
+      const authHeader = request.headers.get('Authorization') || '';
+      const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+      if (!token) {
+        return Response.json({ success: false, error: 'عدم احراز هویت' }, { status: 401, headers: CORS_HEADERS });
+      }
+      const user = await getSessionUser(env, token);
+      if (!user) {
+        return Response.json({ success: false, error: 'نشست کاربری نامعتبر است' }, { status: 401, headers: CORS_HEADERS });
+      }
+
+      try {
+        const body = (await request.json()) as { name: string; description?: string; visibility?: string };
+        const name = (body.name || '').trim();
+        const description = (body.description || '').trim();
+        const visibility = body.visibility === 'private' ? 'private' : 'public';
+
+        if (!name || name.length < 2 || name.length > 30) {
+          return Response.json({ success: false, error: 'نام گروه باید بین ۲ تا ۳۰ کاراکتر باشد' }, { status: 400, headers: CORS_HEADERS });
+        }
+
+        // Anti-Profanity check for group name and description
+        if (containsProfanity(name) || containsProfanity(description)) {
+          return Response.json(
+            { success: false, error: 'نام یا توضیحات گروه حاوی کلمات نامناسب است.' },
+            { status: 400, headers: CORS_HEADERS }
+          );
+        }
+
+        if (env.DB) {
+          // Enforce 2-group creation limit per user
+          const countRow = await env.DB.prepare(
+            'SELECT COUNT(*) as count FROM chat_groups WHERE owner_id = ?1'
+          )
+            .bind(user.id)
+            .first<{ count: number }>();
+
+          if (countRow && countRow.count >= 2) {
+            return Response.json(
+              { success: false, error: 'شما به سقف مجاز ساخت ۲ گروه رسیده‌اید.' },
+              { status: 400, headers: CORS_HEADERS }
+            );
+          }
+
+          const groupId = `grp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+          const inviteCode = 'GL-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+          const now = Date.now();
+
+          await env.DB.prepare(
+            'INSERT INTO chat_groups (id, name, description, owner_id, invite_code, visibility, members_count, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7)'
+          )
+            .bind(groupId, name, description, user.id, inviteCode, visibility, now)
+            .run();
+
+          const group = {
+            id: groupId,
+            name,
+            description,
+            ownerId: user.id,
+            inviteCode,
+            visibility,
+            membersCount: 1,
+            createdAt: now,
+          };
+
+          return Response.json({ success: true, group }, { headers: CORS_HEADERS });
+        }
+
+        return Response.json({ success: false, error: 'خطای سرور دیتابیس' }, { status: 500, headers: CORS_HEADERS });
+      } catch (err: any) {
+        return Response.json({ success: false, error: 'خطا در ایجاد گروه: ' + err?.message }, { status: 500, headers: CORS_HEADERS });
+      }
+    }
+
+    if (url.pathname === '/api/chat/groups/join' && request.method === 'POST') {
+      try {
+        const body = (await request.json()) as { inviteCode?: string; groupId?: string };
+        const code = (body.inviteCode || '').trim().toUpperCase();
+        const groupId = (body.groupId || '').trim();
+
+        if (env.DB) {
+          let group = null;
+          if (code) {
+            group = await env.DB.prepare('SELECT * FROM chat_groups WHERE invite_code = ?1 LIMIT 1')
+              .bind(code)
+              .first<any>();
+          } else if (groupId) {
+            group = await env.DB.prepare('SELECT * FROM chat_groups WHERE id = ?1 LIMIT 1')
+              .bind(groupId)
+              .first<any>();
+          }
+
+          if (!group) {
+            return Response.json({ success: false, error: 'گروه یا کد دعوت یافت نشد' }, { status: 404, headers: CORS_HEADERS });
+          }
+
+          await env.DB.prepare('UPDATE chat_groups SET members_count = members_count + 1 WHERE id = ?1')
+            .bind(group.id)
+            .run();
+
+          return Response.json(
+            {
+              success: true,
+              group: {
+                id: group.id,
+                name: group.name,
+                description: group.description || '',
+                ownerId: group.owner_id,
+                inviteCode: group.invite_code,
+                visibility: group.visibility,
+                membersCount: (group.members_count || 1) + 1,
+                createdAt: group.created_at,
+              },
+            },
+            { headers: CORS_HEADERS }
+          );
+        }
+      } catch (err: any) {
+        return Response.json({ success: false, error: 'خطا در عضویت: ' + err?.message }, { status: 500, headers: CORS_HEADERS });
+      }
+    }
+
+    // 11. User public overview profile query
+    if (url.pathname.startsWith('/api/users/') && request.method === 'GET') {
+      const targetUsername = url.pathname.replace('/api/users/', '').trim();
+      const targetUser = await getUserByUsernameOrEmail(env, targetUsername);
+      if (!targetUser) {
+        return Response.json({ success: false, error: 'کاربر یافت نشد' }, { status: 404, headers: CORS_HEADERS });
+      }
+      return Response.json(
+        {
+          success: true,
+          user: userToDto(targetUser),
+        },
+        { headers: CORS_HEADERS }
+      );
     }
 
     // 10. Presence API (legacy compatibility)

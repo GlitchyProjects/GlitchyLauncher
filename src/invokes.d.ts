@@ -284,6 +284,7 @@ export type Invokes = {
   };
   glitchy_account_logout: { args: undefined; returns: void };
   glitchy_account_get_current: { args: undefined; returns: GlitchyUser | null };
+  glitchy_account_get_token: { args: undefined; returns: string | null };
   glitchy_account_upload_skin: {
     args: { skinData: string; model: string; capeData?: string | null };
     returns: void;

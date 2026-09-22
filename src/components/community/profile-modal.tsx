@@ -1,5 +1,5 @@
-import { Clock, Gamepad2, Play, ShieldCheck, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { Award, Calendar, Clock, Gamepad2, Play, ShieldCheck, Sparkles, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { IdleAnimation, SkinViewer } from "skinview3d";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -63,8 +63,24 @@ export function UserProfileModal({
 }: ProfileModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewerRef = useRef<SkinViewer | null>(null);
+  const [cloudProfile, setCloudProfile] = useState<any>(null);
   const { locale } = useLocale();
   const isFa = locale === "fa";
+
+  useEffect(() => {
+    if (!user?.username) {
+      setCloudProfile(null);
+      return;
+    }
+    fetch(`https://glitchy-api.sepideh-help.workers.dev/api/users/${encodeURIComponent(user.username)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.user) {
+          setCloudProfile(data.user);
+        }
+      })
+      .catch(() => {});
+  }, [user?.username]);
 
   useEffect(() => {
     if (!(user && canvasRef.current)) {
@@ -159,14 +175,12 @@ export function UserProfileModal({
                 <h2 className="truncate font-black text-2xl text-foreground">
                   {user.username}
                 </h2>
-                {user.badges && user.badges.length > 0 && (
-                  <span className="rounded-md bg-primary/20 px-2 py-0.5 font-bold text-[10px] text-primary">
-                    {user.badges[0]}
-                  </span>
-                )}
+                <span className="rounded-md border border-primary/40 bg-primary/20 px-2 py-0.5 font-bold text-[10px] text-primary shadow-xs">
+                  {cloudProfile?.badge || (user.badges && user.badges[0]) || (isFa ? "عضو گلیچی" : "Glitchy Member")}
+                </span>
               </div>
               <p className="mt-1 line-clamp-2 text-muted-foreground text-xs italic">
-                {user.bio || "No status set."}
+                {user.bio || (isFa ? "بازیکن رسمی لانچر گلیچی" : "Official Glitchy Launcher Player")}
               </p>
             </div>
 
@@ -218,15 +232,28 @@ export function UserProfileModal({
               </div>
             )}
 
-            {/* Quick Details */}
-            <div className="grid grid-cols-2 gap-2 pt-1 text-[11px] text-muted-foreground">
-              <div className="flex items-center gap-1.5">
-                <Clock className="size-3.5 text-primary" />
-                <span>Joined {user.memberSince || "Recently"}</span>
+            {/* Overview Stat Tiles */}
+            <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
+              <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-background/50 p-2 text-muted-foreground">
+                <Calendar className="size-4 text-primary shrink-0" />
+                <div className="truncate">
+                  <span className="block text-[9px] uppercase tracking-wider">{isFa ? "عضویت" : "Joined"}</span>
+                  <span className="font-bold text-foreground text-xs">
+                    {cloudProfile?.createdAt
+                      ? new Date(cloudProfile.createdAt).toLocaleDateString(isFa ? "fa-IR" : "en-US")
+                      : (user.memberSince || (isFa ? "به‌تازگی" : "Recently"))}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <ShieldCheck className="size-3.5 text-primary" />
-                <span>Glitchy Player</span>
+
+              <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-background/50 p-2 text-muted-foreground">
+                <ShieldCheck className="size-4 text-primary shrink-0" />
+                <div className="truncate">
+                  <span className="block text-[9px] uppercase tracking-wider">{isFa ? "سطح دسترسی" : "Role"}</span>
+                  <span className="font-bold text-foreground text-xs uppercase">
+                    {cloudProfile?.role || "User"}
+                  </span>
+                </div>
               </div>
             </div>
           </div>

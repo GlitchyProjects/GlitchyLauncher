@@ -418,6 +418,11 @@ pub async fn glitchy_account_get_current() -> Result<Option<GlitchyUser>, AppErr
 }
 
 #[command]
+pub async fn glitchy_account_get_token() -> Result<Option<String>, AppError> {
+    Ok(load_saved_session().map(|s| s.token))
+}
+
+#[command]
 pub async fn glitchy_account_upload_skin(
     skin_data: String,
     model: String,

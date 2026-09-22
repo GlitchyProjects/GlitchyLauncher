@@ -27,9 +27,43 @@ import {
 import { MinecraftAvatar } from "@/components/minecraft-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { backend } from "@/lib/utils";
 import { useAccountStore } from "@/stores/account";
 import { useConfig } from "@/stores/config";
 import { useLocale } from "@/stores/locale";
+
+const API_BASE = "https://glitchy-api.sepideh-help.workers.dev";
+
+const PROFANITY_PATTERNS = [
+  'کیر', 'کص', 'کسکش', 'کونکش', 'کونی', 'کون', 'جنده', 'مادرجنده', 'ننه جنده', 'دیوث', 'سکس', 'سکسی',
+  'بیناموس', 'بی ناموس', 'حرومزاده', 'حرامزاده', 'لاشی', 'پدرسگ', 'پدر سگ', 'خواهرکسه', 'خارکسه', 'خارکسته',
+  'خایه', 'خایه مال', 'ساک زدن', 'کسخول', 'کسخل', 'کوس', 'کوست', 'چوچول', 'شاش', 'عن', 'گوه',
+  'مادرقحبه', 'قحبه', 'سیکتیر', 'سیک تیر', 'بکیرم', 'بکیر', 'بکصم', 'کسشر', 'کسشعر', 'کصشعر', 'کصشر',
+  'kir', 'kos', 'koss', 'koon', 'jende', 'jendeh', 'dayoos', 'dayus', 'binamoos', 'haroomzade', 'lashi',
+  'pedarsag', 'kharkose', 'khaye', 'shash', 'gooh', 'sik', 'siktir', 'koonkesh', 'koskesh',
+  'fuck', 'fucking', 'bitch', 'asshole', 'dick', 'pussy', 'whore', 'slut', 'cunt', 'nigger', 'nigga'
+];
+
+function hasProfanity(text: string): boolean {
+  if (!text) return false;
+  const raw = text.toLowerCase();
+  let normalized = raw
+    .replace(/[يك]/g, (c) => (c === 'ي' ? 'ی' : 'ک'))
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[._\-*#@!+=~`|\\/:;,?^%$()[\]{}<>"]/g, '');
+  const collapsed = normalized.replace(/(.)\1{2,}/g, '$1$1');
+  for (const p of PROFANITY_PATTERNS) {
+    if (normalized.includes(p) || collapsed.includes(p)) return true;
+  }
+  const words = raw.split(/\s+/);
+  for (const w of words) {
+    const clean = w.replace(/[^\p{L}\p{N}]/gu, '');
+    for (const p of PROFANITY_PATTERNS) {
+      if (clean === p) return true;
+    }
+  }
+  return false;
+}
 
 interface ChatMessage {
   channelId: string;
@@ -121,7 +155,7 @@ export default function Community() {
   const { locale } = useLocale();
   const isFa = locale === "fa";
 
-  const { user } = useAccountStore();
+  const { user, openAuthModal } = useAccountStore();
   const currentUsername = user?.username || "GlitchyPlayer";
 
   const [activeChannelId, setActiveChannelId] = useState<string>("global");
@@ -204,122 +238,71 @@ export default function Community() {
     return () => clearInterval(interval);
   }, [mutedUntil]);
 
-  // Real-time live online network synchronization for chat messages
+  // Fetch messages from Cloudflare Worker D1
   useEffect(() => {
     let isMounted = true;
 
-    const parseNtfyMessages = (text: string): ChatMessage[] => {
-      const results: ChatMessage[] = [];
-      const lines = text.split("\n").filter(Boolean);
-      for (const line of lines) {
-        try {
-          const data = JSON.parse(line);
-          if (data.message) {
-            const msg: ChatMessage = JSON.parse(data.message);
-            if (msg.id && msg.text && msg.channelId) {
-              results.push(msg);
+    const fetchMessages = async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/chat/messages?channel=${encodeURIComponent(activeChannelId)}`
+        );
+        const data = await res.json();
+        if (data.success && Array.isArray(data.messages) && isMounted) {
+          setMessages((prev) => {
+            const others = prev.filter((m) => m.channelId !== activeChannelId);
+            const existingMap = new Map(
+              prev
+                .filter((m) => m.channelId === activeChannelId)
+                .map((m) => [m.id, m])
+            );
+            for (const m of data.messages) {
+              existingMap.set(m.id, m);
             }
-          }
-        } catch {}
+            const currentChannel = Array.from(existingMap.values());
+            return [...others, ...currentChannel].sort(
+              (a, b) => a.timestamp - b.timestamp
+            );
+          });
+        }
+      } catch {
+        // Network error ignored in poller
       }
-      return results;
     };
 
-    const fetchRecent = () => {
-      fetch("https://ntfy.sh/glitchy_community_feed_2026/json?poll=1&since=24h")
-        .then((res) => res.text())
-        .then((text) => {
-          if (!isMounted) return;
-          const incoming = parseNtfyMessages(text);
-          if (incoming.length > 0) {
-            setMessages((prev) => {
-              const ids = new Set(prev.map((m) => m.id));
-              const unique = incoming.filter((m) => !ids.has(m.id));
-              if (unique.length === 0) return prev;
-              return [...prev, ...unique].sort(
-                (a, b) => a.timestamp - b.timestamp
-              );
-            });
-          }
-        })
-        .catch(() => {});
-    };
-
-    fetchRecent();
-
-    // Live poller for incoming online messages
-    const interval = setInterval(() => {
-      fetch("https://ntfy.sh/glitchy_community_feed_2026/json?poll=1&since=20s")
-        .then((res) => res.text())
-        .then((text) => {
-          if (!isMounted) return;
-          const incoming = parseNtfyMessages(text);
-          for (const msg of incoming) {
-            setMessages((prev) => {
-              if (prev.some((m) => m.id === msg.id)) return prev;
-              return [...prev, msg].sort(
-                (a, b) => a.timestamp - b.timestamp
-              );
-            });
-          }
-        })
-        .catch(() => {});
-    }, 3500);
+    fetchMessages();
+    const interval = setInterval(fetchMessages, 2500);
 
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [activeChannelId]);
 
-  // Sync public community groups from ntfy so groups created by other users
-  // are discoverable. Public groups are broadcast to a separate topic.
+  // Fetch public community groups from Cloudflare Worker D1
   useEffect(() => {
     let isMounted = true;
 
-    const parseGroups = (text: string): CommunityGroup[] => {
-      const results: CommunityGroup[] = [];
-      const lines = text.split("\n").filter(Boolean);
-      for (const line of lines) {
-        try {
-          const data = JSON.parse(line);
-          if (data.message) {
-            const group: CommunityGroup = JSON.parse(data.message);
-            if (group.id && group.name && group.visibility === "public") {
-              results.push(group);
+    const fetchGroups = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/chat/groups`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.groups) && isMounted) {
+          setGroups((prev) => {
+            const map = new Map(prev.map((g) => [g.id, g]));
+            for (const g of data.groups) {
+              map.set(g.id, g);
             }
-          }
-        } catch {}
+            return Array.from(map.values());
+          });
+        }
+      } catch {
+        // Network error ignored in poller
       }
-      return results;
     };
 
-    const fetchPublicGroups = () => {
-      fetch(
-        "https://ntfy.sh/glitchy_community_groups_2026/json?poll=1&since=72h"
-      )
-        .then((res) => res.text())
-        .then((text) => {
-          if (!isMounted) return;
-          const remoteGroups = parseGroups(text);
-          if (remoteGroups.length > 0) {
-            setGroups((prev) => {
-              const existingIds = new Set(prev.map((g) => g.id));
-              const newOnes = remoteGroups.filter(
-                (g) => !existingIds.has(g.id)
-              );
-              if (newOnes.length === 0) return prev;
-              return [...prev, ...newOnes];
-            });
-          }
-        })
-        .catch(() => {});
-    };
-
-    fetchPublicGroups();
-
-    // Poll every 15 seconds for new public groups
-    const interval = setInterval(fetchPublicGroups, 15_000);
+    fetchGroups();
+    const interval = setInterval(fetchGroups, 10_000);
 
     return () => {
       isMounted = false;
@@ -338,13 +321,23 @@ export default function Community() {
     "";
 
   const userCreatedCount = groups.filter(
-    (g) => g.ownerId === "current_user"
+    (g) => g.ownerId === (user?.id || "current_user")
   ).length;
 
-  // Handle Send Message with Anti-Spam enforcement
-  const handleSendMessage = (e: React.FormEvent) => {
+  // Handle Send Message with Anti-Spam & Anti-Profanity enforcement
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) {
+      return;
+    }
+
+    if (!user) {
+      toast.error(
+        isFa
+          ? "برای ارسال پیام ابتدا وارد حساب گلیچی شوید."
+          : "Please login to Glitchy Account first."
+      );
+      openAuthModal("login");
       return;
     }
 
@@ -355,6 +348,16 @@ export default function Community() {
         isFa
           ? "سیستم ضداسپم: شما موقتاً از ارسال پیام محروم هستید."
           : "Anti-spam active. You are temporarily muted."
+      );
+      return;
+    }
+
+    // Anti-Profanity Filter
+    if (hasProfanity(inputText)) {
+      toast.error(
+        isFa
+          ? "پیام شما حاوی کلمات نامناسب است و ارسال نشد."
+          : "Your message contains profanity and was blocked."
       );
       return;
     }
@@ -378,66 +381,110 @@ export default function Community() {
       return;
     }
 
-    const newMsg: ChatMessage = {
-      channelId: activeChannelId,
-      id: `msg_${now}`,
-      sender: {
-        bio: "Glitchy Launcher user",
-        id: "current_user",
-        memberSince: "Today",
-        model:
-          (localStorage.getItem("glitchy_active_skin_model") as
-            | "default"
-            | "slim") || "default",
-        skinUrl: localStorage.getItem("glitchy_active_skin_url") || undefined,
-        status: "online",
-        username: currentUsername,
-      },
-      text: inputText.trim(),
-      timestamp: now,
-    };
-
-    setMessages((prev) => [...prev, newMsg]);
+    const textToSend = inputText.trim();
     setInputText("");
 
-    // Broadcast over real online network to all Glitchy Launcher users
-    fetch("https://ntfy.sh/glitchy_community_feed_2026", {
-      body: JSON.stringify(newMsg),
-      headers: { Title: "chat" },
-      method: "POST",
-    }).catch(() => {});
+    try {
+      const token = await backend("glitchy_account_get_token");
+      const res = await fetch(`${API_BASE}/api/chat/messages`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token || ""}`,
+        },
+        body: JSON.stringify({
+          channelId: activeChannelId,
+          text: textToSend,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.message) {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === data.message.id)) return prev;
+          return [...prev, data.message];
+        });
+      } else {
+        toast.error(
+          data.error ||
+            (isFa ? "خطا در ارسال پیام" : "Failed to send message")
+        );
+      }
+    } catch {
+      toast.error(
+        isFa
+          ? "خطا در برقراری ارتباط با سرور چت"
+          : "Failed to connect to chat server"
+      );
+    }
   };
 
-  // Create Group Handler
-  const handleCreateGroup = (
+  // Create Group Handler (Max 2 groups per user)
+  const handleCreateGroup = async (
     groupData: Omit<
       CommunityGroup,
       "id" | "inviteCode" | "createdAt" | "membersCount"
     >
   ) => {
-    const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const newGroup: CommunityGroup = {
-      ...groupData,
-      createdAt: Date.now(),
-      id: `group_${Date.now()}`,
-      inviteCode,
-      membersCount: 1,
-    };
-    setGroups((prev) => [...prev, newGroup]);
-    setActiveChannelId(newGroup.id);
-    toast.success(
-      isFa
-        ? `گروه ${newGroup.name} با موفقیت ساخته شد!`
-        : `Community ${newGroup.name} created!`
-    );
+    if (!user) {
+      toast.error(
+        isFa
+          ? "برای ساخت گروه ابتدا وارد حساب گلیچی شوید."
+          : "Please login to Glitchy Account first."
+      );
+      openAuthModal("login");
+      return;
+    }
 
-    // Broadcast public groups to ntfy so other launcher users can discover them
-    if (newGroup.visibility === "public") {
-      fetch("https://ntfy.sh/glitchy_community_groups_2026", {
-        body: JSON.stringify(newGroup),
-        headers: { Title: "group" },
+    if (userCreatedCount >= 2) {
+      toast.error(
+        isFa
+          ? "شما به سقف مجاز ۲ گروه ایجاد شده رسیده‌اید."
+          : "You have reached the maximum limit of 2 created communities."
+      );
+      return;
+    }
+
+    if (hasProfanity(groupData.name) || hasProfanity(groupData.description)) {
+      toast.error(
+        isFa
+          ? "نام یا توضیحات گروه حاوی کلمات نامناسب است."
+          : "Group name or description contains profanity."
+      );
+      return;
+    }
+
+    try {
+      const token = await backend("glitchy_account_get_token");
+      const res = await fetch(`${API_BASE}/api/chat/groups`, {
         method: "POST",
-      }).catch(() => {});
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token || ""}`,
+        },
+        body: JSON.stringify(groupData),
+      });
+      const data = await res.json();
+      if (data.success && data.group) {
+        setGroups((prev) => {
+          if (prev.some((g) => g.id === data.group.id)) return prev;
+          return [...prev, data.group];
+        });
+        setActiveChannelId(data.group.id);
+        toast.success(
+          isFa
+            ? `گروه ${data.group.name} با موفقیت ساخته شد!`
+            : `Community ${data.group.name} created!`
+        );
+      } else {
+        toast.error(
+          data.error ||
+            (isFa ? "خطا در ساخت گروه" : "Failed to create group")
+        );
+      }
+    } catch {
+      toast.error(
+        isFa ? "خطا در برقراری ارتباط با سرور" : "Failed to connect to server"
+      );
     }
   };
 

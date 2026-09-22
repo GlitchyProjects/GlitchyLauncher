@@ -249,6 +249,7 @@ pub fn run() {
             commands::account::glitchy_account_login,
             commands::account::glitchy_account_logout,
             commands::account::glitchy_account_get_current,
+            commands::account::glitchy_account_get_token,
             commands::account::glitchy_account_upload_skin,
             commands::account::glitchy_account_sync_save,
             commands::account::glitchy_account_sync_load,
