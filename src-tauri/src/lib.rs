@@ -294,6 +294,17 @@ async fn play(
     direct_connect: Option<crate::services::game_launcher::DirectConnectTarget>,
 ) -> Result<LaunchResult, AppError> {
     let _ = &state; // AppState is also held by the launcher internally.
+
+    // Enforce active Glitchy Account
+    match commands::account::glitchy_account_get_current().await {
+        Ok(Some(_)) => {}
+        _ => {
+            return Err(AppError::UnknownError(
+                "برای اجرای بازی، ورود به حساب کاربری گلیچی الزامی است.".to_string(),
+            ));
+        }
+    }
+
     let versions = {
         let global = GLOBAL_CACHE.lock().await;
         global.versions.clone()

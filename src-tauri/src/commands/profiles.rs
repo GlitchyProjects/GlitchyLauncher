@@ -9,11 +9,18 @@ use crate::services::directory_manager::get_profiles_file;
 use crate::services::utils::uuid_from_username;
 use crate::AppState;
 
-/// Return all profiles. Always succeeds (returns an empty array if the
-/// file is missing or corrupt — recovery happens server-side).
+/// Return all profiles. Tied directly to the active Glitchy Account.
 #[command]
 pub async fn get_profiles() -> Result<Vec<Profile>, AppError> {
-    Ok(profiles::get_profiles())
+    if let Ok(Some(u)) = crate::commands::account::glitchy_account_get_current().await {
+        return Ok(vec![Profile {
+            uuid: uuid_from_username(&u.username),
+            username: u.username.clone(),
+            online: true,
+            created_at: u.created_at,
+        }]);
+    }
+    Ok(vec![])
 }
 
 /// Create a new offline profile and select it immediately so the user

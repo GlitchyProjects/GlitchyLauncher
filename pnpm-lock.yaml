@@ -55,7 +55,7 @@ importers:
         version: 2.1.1
       falcon:
         specifier: 'file:'
-        version: file:(@types/node@24.9.1)(@types/react@19.2.2)(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.8.3)(use-sync-external-store@1.6.0(react@19.2.0))(vite@7.1.12(@types/node@24.9.1)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
+        version: glitchy-launcher@file:(@types/node@24.9.1)(@types/react@19.2.2)(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.8.3)(use-sync-external-store@1.6.0(react@19.2.0))(vite@7.1.12(@types/node@24.9.1)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
       fast-xml-parser:
         specifier: ^5.2.5
         version: 5.3.0
@@ -2031,9 +2031,6 @@ packages:
     resolution: {integrity: sha512-11Ndz7Nv+mvAC1j0ktTa7fAb0vLyGGX+rMHNBYQviQDGU0Hw7lhctJANqbPhu9nV9/izT/IntTgZ7Im/9LJs9g==}
     engines: {'0': node >=0.6.0}
 
-  'falcon@file:':
-    resolution: {directory: '', type: directory}
-
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
 
@@ -2289,6 +2286,9 @@ packages:
 
   github-from-package@0.0.0:
     resolution: {integrity: sha512-SyHy3T1v2NUXn29OsWdxmK6RwHD+vkj3v8en8AOBZ1wBQ/hCAQ5bAQTD02kW4W9tUp/3Qh6J8r9EvntiyCmOOw==}
+
+  'glitchy-launcher@file:':
+    resolution: {directory: '', type: directory}
 
   glob-parent@5.1.2:
     resolution: {integrity: sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow==}
@@ -6865,56 +6865,6 @@ snapshots:
 
   extsprintf@1.3.0: {}
 
-  falcon@file:(@types/node@24.9.1)(@types/react@19.2.2)(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.8.3)(use-sync-external-store@1.6.0(react@19.2.0))(vite@7.1.12(@types/node@24.9.1)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0)):
-    dependencies:
-      '@base-ui/react': 1.3.0(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      '@fontsource-variable/inter': 5.2.8
-      '@fontsource-variable/vazirmatn': 5.3.0
-      '@hugeicons/core-free-icons': 4.0.0
-      '@hugeicons/react': 1.1.6(react@19.2.0)
-      '@tailwindcss/vite': 4.1.16(vite@7.1.12(@types/node@24.9.1)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
-      '@tanstack/react-query': 5.90.5(react@19.2.0)
-      '@tauri-apps/api': 2.9.0
-      '@tauri-apps/plugin-deep-link': 2.4.3
-      '@tauri-apps/plugin-dialog': 2.4.0
-      '@tauri-apps/plugin-log': 2.7.0
-      '@tauri-apps/plugin-notification': 2.3.1
-      '@tauri-apps/plugin-opener': 2.5.0
-      class-variance-authority: 0.7.1
-      clsx: 2.1.1
-      fast-xml-parser: 5.3.0
-      i18next: 25.6.0(typescript@5.8.3)
-      lucide-react: 0.507.0(react@19.2.0)
-      next-themes: 0.4.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      pnpm: 10.26.0
-      react: 19.2.0
-      react-dom: 19.2.0(react@19.2.0)
-      react-i18next: 15.7.4(i18next@25.6.0(typescript@5.8.3))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.8.3)
-      react-router: 7.14.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      shadcn: 4.1.0(@types/node@24.9.1)(supports-color@7.2.0)(typescript@5.8.3)
-      skinview3d: 3.4.2
-      sonner: 2.0.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      tailwind-merge: 3.3.1
-      tailwindcss: 4.1.16
-      tauri: 0.15.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
-      three: file:../../../MAHANB~1/AppData/Local/Temp/three.tgz
-      zustand: 5.0.8(@types/react@19.2.2)(react@19.2.0)(use-sync-external-store@1.6.0(react@19.2.0))
-    transitivePeerDependencies:
-      - '@cfworker/json-schema'
-      - '@types/node'
-      - '@types/react'
-      - babel-plugin-macros
-      - bufferutil
-      - canvas
-      - debug
-      - immer
-      - react-native
-      - supports-color
-      - typescript
-      - use-sync-external-store
-      - utf-8-validate
-      - vite
-
   fast-deep-equal@3.1.3: {}
 
   fast-glob@3.2.4:
@@ -7172,6 +7122,56 @@ snapshots:
       assert-plus: 1.0.0
 
   github-from-package@0.0.0: {}
+
+  glitchy-launcher@file:(@types/node@24.9.1)(@types/react@19.2.2)(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.8.3)(use-sync-external-store@1.6.0(react@19.2.0))(vite@7.1.12(@types/node@24.9.1)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0)):
+    dependencies:
+      '@base-ui/react': 1.3.0(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@fontsource-variable/inter': 5.2.8
+      '@fontsource-variable/vazirmatn': 5.3.0
+      '@hugeicons/core-free-icons': 4.0.0
+      '@hugeicons/react': 1.1.6(react@19.2.0)
+      '@tailwindcss/vite': 4.1.16(vite@7.1.12(@types/node@24.9.1)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
+      '@tanstack/react-query': 5.90.5(react@19.2.0)
+      '@tauri-apps/api': 2.9.0
+      '@tauri-apps/plugin-deep-link': 2.4.3
+      '@tauri-apps/plugin-dialog': 2.4.0
+      '@tauri-apps/plugin-log': 2.7.0
+      '@tauri-apps/plugin-notification': 2.3.1
+      '@tauri-apps/plugin-opener': 2.5.0
+      class-variance-authority: 0.7.1
+      clsx: 2.1.1
+      fast-xml-parser: 5.3.0
+      i18next: 25.6.0(typescript@5.8.3)
+      lucide-react: 0.507.0(react@19.2.0)
+      next-themes: 0.4.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      pnpm: 10.26.0
+      react: 19.2.0
+      react-dom: 19.2.0(react@19.2.0)
+      react-i18next: 15.7.4(i18next@25.6.0(typescript@5.8.3))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.8.3)
+      react-router: 7.14.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      shadcn: 4.1.0(@types/node@24.9.1)(supports-color@7.2.0)(typescript@5.8.3)
+      skinview3d: 3.4.2
+      sonner: 2.0.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      tailwind-merge: 3.3.1
+      tailwindcss: 4.1.16
+      tauri: 0.15.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
+      three: file:../../../MAHANB~1/AppData/Local/Temp/three.tgz
+      zustand: 5.0.8(@types/react@19.2.2)(react@19.2.0)(use-sync-external-store@1.6.0(react@19.2.0))
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - '@types/node'
+      - '@types/react'
+      - babel-plugin-macros
+      - bufferutil
+      - canvas
+      - debug
+      - immer
+      - react-native
+      - supports-color
+      - typescript
+      - use-sync-external-store
+      - utf-8-validate
+      - vite
 
   glob-parent@5.1.2:
     dependencies:

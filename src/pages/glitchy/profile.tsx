@@ -16,6 +16,7 @@ import {
 import { ProfileCustomizer } from "@/components/glitchy/profile-customizer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBackend } from "@/hooks/use-backend";
+import { useAccountStore } from "@/stores/account";
 import type { ActivityEntry, BadgeWithState } from "@/invokes";
 import { presetAvatarSrc } from "@/lib/avatars";
 import { HugeiconsIcon, resolveIcon } from "@/lib/icons";
@@ -24,6 +25,7 @@ import Badges from "@/pages/glitchy/badges";
 import Journey from "@/pages/glitchy/journey";
 
 export default function GlitchyProfile() {
+  const { user } = useAccountStore();
   const { data: profile, refetch: refetchProfile } = useBackend({
     name: "glitchy_get_profile",
   });
@@ -31,9 +33,6 @@ export default function GlitchyProfile() {
   const { data: activity } = useBackend({
     args: { limit: 8 },
     name: "glitchy_get_recent_activity",
-  });
-  const { data: selectedProfile } = useBackend({
-    name: "get_selected_profile",
   });
 
   const [customizerOpen, setCustomizerOpen] = useState(false);
@@ -69,7 +68,7 @@ export default function GlitchyProfile() {
   const stats = profile.statistics;
   const playtimeHours = Math.floor(stats.totalPlaytimeSeconds / 3600);
   const displayedBadges = (badges ?? []).filter((b) => b.displayed);
-  const username = selectedProfile?.username ?? "Glitchy";
+  const username = user?.username ?? "Glitchy";
   const tagline = customization.tagline?.trim() || "Minecraft Player";
 
   return (

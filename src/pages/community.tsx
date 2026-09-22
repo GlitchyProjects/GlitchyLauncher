@@ -27,7 +27,7 @@ import {
 import { MinecraftAvatar } from "@/components/minecraft-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useBackend } from "@/hooks/use-backend";
+import { useAccountStore } from "@/stores/account";
 import { useConfig } from "@/stores/config";
 import { useLocale } from "@/stores/locale";
 
@@ -121,10 +121,8 @@ export default function Community() {
   const { locale } = useLocale();
   const isFa = locale === "fa";
 
-  const { data: selectedProfile } = useBackend({
-    name: "get_selected_profile",
-  });
-  const currentUsername = selectedProfile?.username || "GlitchyPlayer";
+  const { user } = useAccountStore();
+  const currentUsername = user?.username || "GlitchyPlayer";
 
   const [activeChannelId, setActiveChannelId] = useState<string>("global");
   const [messages, setMessages] = useState<ChatMessage[]>(() => {

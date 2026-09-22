@@ -16,13 +16,13 @@ use crate::models::versions::MinecraftVersion;
 use crate::models::launch::{GameExitEvent, GameExitKind, LaunchProgress, LaunchResult};
 use crate::models::logger::{error as log_error, info as log_info};
 use crate::models::platform::get_current_os;
-use crate::models::profiles::get_profile;
 use crate::services::directory_manager::*;
 use crate::services::download_session;
 use crate::services::game_downloader::download_version;
 use crate::services::jdk_manager::{download_java, get_java};
 use crate::services::utils::{
-    apply_dedicated_gpu_env, extend_once, is_wayland, linux_java_permission_fix, vec_to_string,
+    apply_dedicated_gpu_env, extend_once, is_wayland, linux_java_permission_fix, uuid_from_username,
+    vec_to_string,
 };
 use crate::AppState;
 use crate::Global;
@@ -82,11 +82,20 @@ pub async fn launch_game(
 
     let config = state.config.read().await;
     let launch_options = &config.launch_options;
-    let uid = &launch_options.selected_profile;
-    let profile = get_profile(uid).ok_or_else(|| {
-        AppError::NoProfileSelected
-    })?;
-    let username = profile.username;
+
+    // Player identity is strictly managed by Glitchy Account
+    let (username, uid) = match crate::commands::account::glitchy_account_get_current().await {
+        Ok(Some(u)) => {
+            let uname = u.username;
+            let uid = uuid_from_username(&uname);
+            (uname, uid)
+        }
+        _ => {
+            return Err(AppError::UnknownError(
+                "برای اجرای بازی، داشتن حساب کاربری گلیچی الزامی است. لطفاً ابتدا وارد حساب کاربری خود شوید.".to_string(),
+            ));
+        }
+    };
 
     let ver_res = versions_cache.iter().find(|x| x.id == version).cloned();
     let version = ver_res.unwrap_or_else(|| MinecraftVersion::from_id(version.clone()));

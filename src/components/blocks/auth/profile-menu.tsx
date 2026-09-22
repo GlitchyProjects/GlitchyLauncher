@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LogOut, Sparkles, User, Shield, ChevronDown } from 'lucide-react';
+import { LogOut, Sparkles, User, Shield, ChevronDown, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAccountStore } from '@/stores/account';
 import { toast } from 'sonner';
@@ -81,8 +81,20 @@ export function GlitchyProfileMenu() {
 
             <button
               type='button'
+              onClick={() => {
+                setMenuOpen(false);
+                openAuthModal('login');
+              }}
+              className='w-full flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-medium text-white/80 hover:bg-white/10 transition-colors'
+            >
+              <UserPlus className='size-3.5 text-emerald-400' />
+              <span>تغییر حساب / ورود به اکانت دیگر</span>
+            </button>
+
+            <button
+              type='button'
               onClick={handleLogout}
-              className='w-full mt-2 flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-medium text-red-400 hover:bg-red-500/10 transition-colors'
+              className='w-full mt-1 flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-medium text-red-400 hover:bg-red-500/10 transition-colors'
             >
               <LogOut className='size-3.5' />
               <span>خروج از حساب کاربری</span>

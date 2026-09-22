@@ -3,6 +3,7 @@ use tauri::{command, State};
 use crate::models::config::Config;
 use crate::models::error::AppError;
 use crate::models::profiles::{get_profile, Profile};
+use crate::services::utils::uuid_from_username;
 use crate::AppState;
 
 #[command]
@@ -88,6 +89,14 @@ pub async fn set_config(state: State<'_, AppState>, config: Config) -> Result<()
 pub async fn get_selected_profile(
     state: State<'_, AppState>,
 ) -> Result<Option<Profile>, AppError> {
+    if let Ok(Some(u)) = crate::commands::account::glitchy_account_get_current().await {
+        return Ok(Some(Profile {
+            uuid: uuid_from_username(&u.username),
+            username: u.username.clone(),
+            online: true,
+            created_at: u.created_at,
+        }));
+    }
     let cfg = state.config.read().await;
     let uuid = cfg.launch_options.selected_profile;
     Ok(get_profile(&uuid))

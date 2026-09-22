@@ -313,13 +313,6 @@ function PlayButton() {
   const version = useConfig((state) => state.version);
   const { user, openAuthModal } = useAccountStore();
 
-  // NOTE: the selected profile lives in the backend config (set via the
-  // profile menu). The old code gated on a zustand `profile` field that
-  // nothing ever wrote, which left the button permanently disabled.
-  const { data: selectedProfile } = useBackend({
-    name: "get_selected_profile",
-  });
-
   const { mutateAsync, isPending } = useBackendMutation({
     name: "play",
   });
@@ -359,10 +352,11 @@ function PlayButton() {
   }, [justLaunched]);
 
   const noVersion = version === null;
-  const noProfile = selectedProfile !== undefined && selectedProfile === null;
   const title = !user
     ? "Login and Play with your Glitchy Account"
-    : playButtonTitle(noVersion, noProfile);
+    : noVersion
+      ? "Select an instance to play"
+      : "Play Minecraft";
   const text = !user
     ? "Login and Play"
     : playButtonText(isPending, noVersion);
@@ -407,15 +401,7 @@ function PlayButton() {
   );
 }
 
-function playButtonTitle(noVersion: boolean, noProfile: boolean) {
-  if (noVersion) {
-    return "Select a version first";
-  }
-  if (noProfile) {
-    return "No profile selected — click to create one";
-  }
-  return "Launch Minecraft";
-}
+
 
 function playButtonText(isPending: boolean, noVersion: boolean) {
   if (isPending) {
