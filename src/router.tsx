@@ -13,6 +13,7 @@ import Achievements from "./pages/glitchy/achievements";
 import Badges from "./pages/glitchy/badges";
 import Journey from "./pages/glitchy/journey";
 import GlitchyProfile from "./pages/glitchy/profile";
+import Community from "./pages/community";
 import InstanceManager from "./pages/instance-manager";
 
 export const router = createMemoryRouter([
@@ -20,6 +21,7 @@ export const router = createMemoryRouter([
     children: [
       { element: <IndexPage />, path: "/" },
       { element: <Library />, path: "/library" },
+      { element: <Community />, path: "/community" },
       { element: <GlitchyProfile />, path: "/profile" },
       { element: <AssistantPage />, path: "/assistant" },
       { element: <Settings />, path: "/settings" },

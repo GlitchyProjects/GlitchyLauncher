@@ -6,6 +6,7 @@ import {
   GameboyIcon,
   Package01Icon,
   Settings01Icon,
+  UserGroupIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Sparkles } from "lucide-react";
@@ -33,14 +34,19 @@ export function NavMenu() {
       url: "/library",
     },
     {
-      icon: <HugeiconsIcon icon={Download01Icon} strokeWidth={2} />,
-      title: t("nav_downloads", "Downloads"),
-      url: "/downloads",
+      icon: <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} />,
+      title: t("nav_community", "Community"),
+      url: "/community",
     },
     {
       icon: <HugeiconsIcon icon={Award01Icon} strokeWidth={2} />,
       title: t("nav_profile", "Profile"),
       url: "/profile",
+    },
+    {
+      icon: <HugeiconsIcon icon={Download01Icon} strokeWidth={2} />,
+      title: t("nav_downloads", "Downloads"),
+      url: "/downloads",
     },
     {
       icon: <Sparkles className="size-5 text-primary" />,
