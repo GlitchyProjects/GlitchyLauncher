@@ -5,8 +5,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
+$falconExe = Join-Path $root "src-tauri\target\release\falconlauncher.exe"
 $launcherExe = Join-Path $root "src-tauri\target\release\Glitchy Launcher.exe"
 $launcherGz = Join-Path $PSScriptRoot "src-tauri\resources\launcher.gz"
+
+if (Test-Path $falconExe) {
+    Write-Output "Syncing latest build from $falconExe to $launcherExe..."
+    Copy-Item -LiteralPath $falconExe -Destination $launcherExe -Force
+}
 
 if (-not (Test-Path $launcherExe)) {
     throw "Launcher executable not found at: $launcherExe. Please build the launcher first."
@@ -15,6 +21,7 @@ if (-not (Test-Path $launcherExe)) {
 # Compress launcher executable into launcher.gz if not skipped or outdated
 if (-not $SkipCompress -or -not (Test-Path $launcherGz)) {
     Write-Output "Compressing launcher executable to GZip ($launcherGz)..."
+    if (Test-Path $launcherGz) { Remove-Item -LiteralPath $launcherGz -Force }
     $inStream = [System.IO.File]::OpenRead($launcherExe)
     $outStream = [System.IO.File]::Create($launcherGz)
     $gzStream = New-Object System.IO.Compression.GZipStream($outStream, [System.IO.Compression.CompressionLevel]::Optimal)
@@ -75,4 +82,10 @@ if ($CopyToDesktop) {
     Copy-Item -LiteralPath $out -Destination (Join-Path $desktop "Glitchy Launcher WebSetup.exe") -Force
     Copy-Item -LiteralPath $launcherExe -Destination (Join-Path $desktop "Glitchy Launcher.exe") -Force
     Write-Output "Copied 'Glitchy Launcher WebSetup.exe' and 'Glitchy Launcher.exe' to Desktop."
+
+    $installedProg = Join-Path $env:LOCALAPPDATA "Programs\Glitchy Launcher\Glitchy Launcher.exe"
+    if (Test-Path (Split-Path $installedProg -Parent)) {
+        Copy-Item -LiteralPath $launcherExe -Destination $installedProg -Force
+        Write-Output "Updated installed launcher at: $installedProg"
+    }
 }
