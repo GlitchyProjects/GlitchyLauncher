@@ -1,0 +1,7 @@
+[target.'cfg(target_os = "windows")']
+rustflags = [
+    "-C", "link-arg=/GUARD:CF",
+    "-C", "link-arg=/DYNAMICBASE",
+    "-C", "link-arg=/NXCOMPAT",
+    "-C", "link-arg=/HIGHENTROPYVA",
+]

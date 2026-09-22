@@ -1,6 +1,11 @@
 "use client";
 
-import { type ComponentProps, type ReactNode, useTransition } from "react";
+import {
+  type ComponentProps,
+  type ReactNode,
+  useState,
+  useTransition,
+} from "react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -19,53 +24,59 @@ import { Button } from "@/components/ui/button";
 export function ActionButton({
   action,
   disabled,
-  noLoadingIndicator = false,
   requireAreYouSure = false,
-  areYouSureDescription = "این عمل غیرقابل بازگشت است.",
-  areYouSureButton = "باشه.",
+  areYouSureDescription = "This action is irreversible.",
+  areYouSureButton = "Confirm",
   ...props
 }: ComponentProps<typeof Button> & {
   action: () =>
     | Promise<{ error: boolean; message?: string }>
     | Promise<void>
     | void;
-  noLoadingIndicator?: boolean;
   requireAreYouSure?: boolean;
   areYouSureDescription?: ReactNode;
   areYouSureButton?: ReactNode;
 }) {
   const [isLoading, startTransition] = useTransition();
+  const [open, setOpen] = useState(false);
 
   function performAction() {
-    startTransition(async () => {
-      try {
-        const data = await action();
+    return new Promise<void>((resolve) => {
+      startTransition(async () => {
+        try {
+          const data = await action();
 
-        if (data?.error) {
-          toast.error(data.message ?? "Error");
+          if (data?.error) {
+            toast.error(data.message ?? "Error");
+          }
+        } catch (error) {
+          console.error(error);
+        } finally {
+          resolve();
         }
-      } catch (error) {
-        console.error(error);
-      }
+      });
     });
   }
 
   if (requireAreYouSure) {
     return (
-      <AlertDialog open={isLoading ? true : undefined}>
+      <AlertDialog onOpenChange={setOpen} open={open}>
         <AlertDialogTrigger render={<Button {...props} />} />
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>از این کار اطمینان دارید؟</AlertDialogTitle>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
               {areYouSureDescription}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>بازگشت</AlertDialogCancel>
+            <AlertDialogCancel>Back</AlertDialogCancel>
             <AlertDialogAction
               disabled={isLoading || disabled}
-              onClick={performAction}
+              onClick={async () => {
+                await performAction();
+                setOpen(false);
+              }}
               type="button"
             >
               <LoadingSwap isLoading={isLoading}>
@@ -87,16 +98,12 @@ export function ActionButton({
         props.onClick?.(e);
       }}
     >
-      {noLoadingIndicator ? (
-        props.children
-      ) : (
-        <LoadingSwap
-          className="inline-flex items-center gap-2"
-          isLoading={isLoading}
-        >
-          {props.children}
-        </LoadingSwap>
-      )}
+      <LoadingSwap
+        className="inline-flex items-center gap-2"
+        isLoading={isLoading}
+      >
+        {props.children}
+      </LoadingSwap>
     </Button>
   );
 }

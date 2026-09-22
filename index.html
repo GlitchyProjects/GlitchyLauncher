@@ -4,7 +4,22 @@
     <meta charset="UTF-8">
     <link href="/vite.svg" rel="icon" type="image/svg+xml">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <title>FalconLauncher - Minecraft Launcher</title>
+    <title>Glitchy Launcher</title>
+    <style>
+      html, body {
+        margin: 0; padding: 0;
+        background: #0a0e1a;
+        color: #b4d4f4;
+        font-family: "Inter", system-ui, sans-serif;
+        overflow: hidden;
+      }
+      #root:empty::before {
+        content: "Loading Glitchy Launcher...";
+        display: flex; align-items: center; justify-content: center;
+        height: 100vh; width: 100vw;
+        font-size: 14px; letter-spacing: 0.1em; color: #4c8ccc;
+      }
+    </style>
     <link href="/src/style.css" rel="stylesheet">
   </head>
   <body>

@@ -9,8 +9,7 @@ import { sendNotification } from "@tauri-apps/plugin-notification";
 import { toast } from "sonner";
 import type { InvokeError, Invokes } from "@/invokes";
 import { backend } from "@/lib/utils";
-import { errorText } from "@/messages";
-import {invoke} from "@tauri-apps/api/core";
+import { errorText, recoveryAction } from "@/messages";
 
 export function useBackend<
   Invoke extends keyof Invokes,
@@ -20,11 +19,7 @@ export function useBackend<
   args,
   ...params
 }: Omit<
-  UseQueryOptions<
-    Invokes[Invoke]["returns"],
-    InvokeError<Invokes[Invoke]["custom_error"]>,
-    TData
-  >,
+  UseQueryOptions<Invokes[Invoke]["returns"], InvokeError, TData>,
   "queryFn" | "queryKey"
 > & { name: Invoke; args?: Invokes[Invoke]["args"]; queryKey?: QueryKey }) {
   const query = useQuery({
@@ -40,12 +35,12 @@ type TVarsType<
   Args extends Invokes[keyof Invokes]["args"],
   TArgs extends Partial<Record<string, unknown>>,
 > = keyof Omit<Args, keyof TArgs> extends never
-  ? void // بدون پارامتر
-  : Omit<Args, keyof TArgs>; // همان تعریف قبلی
+  ? void // No parameters required
+  : Omit<Args, keyof TArgs>;
 
 export function useBackendMutation<
   Invoke extends keyof Invokes,
-  // biome-ignore lint/complexity/noBannedTypes: with {} evey magical type works fine
+  // biome-ignore lint/complexity/noBannedTypes: with {} every magical type works fine
   TArgs extends Partial<Invokes[Invoke]["args"]> = {},
 >({
   name,
@@ -55,7 +50,7 @@ export function useBackendMutation<
 }: Omit<
   UseMutationOptions<
     Invokes[Invoke]["returns"], // TData
-    InvokeError<Invokes[Invoke]["custom_error"]>, // TError
+    InvokeError, // TError
     TVarsType<Invokes[Invoke]["args"], TArgs> // TVariables
   >,
   "mutationFn"
@@ -64,7 +59,7 @@ export function useBackendMutation<
 
   const mutation = useMutation<
     Invokes[Invoke]["returns"], // TData
-    InvokeError<Invokes[Invoke]["custom_error"]>, // TError
+    InvokeError, // TError
     TVars // TVariables
   >({
     mutationFn: (variables: TVars) =>
@@ -74,18 +69,35 @@ export function useBackendMutation<
       if (onError) {
         onError(error, vars, res, context);
       } else {
+        // Use the structured error envelope. `message` comes directly
+        // from the Rust backend; `details` is optional technical info.
+        // Fall back to the localized `errorText` lookup if the backend
+        // didn't provide a message.
         const displayError = errorText(error.code);
-        toast.error(displayError.title, {
-          description: displayError.description,
+        const title = error?.message || displayError.title;
+        const description = error?.details
+          ? `${displayError.description}\n${error.details}`
+          : displayError.description;
+        const recovery = recoveryAction(error.recovery);
+        toast.error(title, {
+          action: recovery
+            ? {
+                label: recovery.label,
+                onClick: () => {
+                  window.dispatchEvent(
+                    new CustomEvent("recovery-action", {
+                      detail: recovery.action,
+                    })
+                  );
+                },
+              }
+            : undefined,
+          description,
         });
         sendNotification({
           body: displayError.description,
           title: displayError.title,
         });
-        if (typeof error.data == "string"){
-
-          invoke("error", { message: error.data });
-        }
       }
     },
     ...params,

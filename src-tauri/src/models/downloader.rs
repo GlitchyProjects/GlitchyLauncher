@@ -1,11 +1,10 @@
+use crate::models::error::AppError;
 use crate::models::versions::VersionBase;
-use crate::models::versions::VersionBase::{FABRIC, FORGE};
+use crate::models::versions::VersionBase::{FABRIC, FORGE, OPTIFINE};
 use crate::models::versions::VersionType;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::fmt::Display;
-use tauri::{AppHandle, Emitter};
 
 #[derive(Deserialize, Debug)]
 pub struct Manifest {
@@ -41,6 +40,7 @@ pub struct LibraryInfo {
     pub size: u64,
     pub path: String,
     pub url: String,
+    pub sha1: Option<String>,
 }
 
 pub struct LibraryRules {
@@ -140,7 +140,11 @@ pub struct LibraryDownloads {
 pub struct LibraryArtifact {
     pub path: Option<String>,
     pub url: String,
-    pub size: Option<u64>,
+    pub size: u64,
+    /// SHA-1 hash from the Mojang manifest. Present on all modern
+    /// library artifacts. Missing on some legacy/Forge artifacts,
+    /// in which case repair falls back to size-only verification.
+    #[serde(default)]
     pub sha1: Option<String>,
 }
 
@@ -159,9 +163,11 @@ pub struct VersionInfo {
     pub time: String,
     #[serde(rename = "releaseTime")]
     pub release_time: String,
+    #[serde(default)]
+    pub sha1: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct VersionLoader {
     pub id: String,
     pub base: VersionBase,
@@ -173,25 +179,108 @@ impl VersionLoader {
         match self.base {
             VersionBase::VANILLA => self.id.clone(),
             FORGE => {
-                let id_clone = self.id.clone();
-                let args = id_clone.split("-").collect::<Vec<_>>();
-                let vanilla_id = args[0];
-                let forge_ver = args[1].split("-").last().unwrap();
-                format!("{}-forge-{}", vanilla_id, forge_ver)
+                // Forge version IDs look like "1.18.2-40.2.0" or
+                // "1.18.2-40.2.0-beta". We split on the FIRST '-' to
+                // get the vanilla version and the forge version suffix.
+                let mut parts = self.id.splitn(2, '-');
+                let vanilla_id = parts.next().unwrap_or(&self.id);
+                let forge_ver = parts.next().unwrap_or("");
+                if forge_ver.is_empty() {
+                    // No '-' found — treat the whole ID as-is.
+                    self.id.clone()
+                } else {
+                    format!("{vanilla_id}-forge-{forge_ver}")
+                }
             }
             VersionBase::NEOFORGE => self.id.clone(),
             FABRIC => {
-                let args = self.id.split("-").collect::<Vec<_>>();
-                format!("fabric-loader-{}-{}", args[1], args[0])
+                // Fabric version IDs from the frontend look like
+                // "1.18.2-0.19.3" (mcVersion-loaderVersion). We need
+                // to produce "fabric-loader-0.19.3-1.18.2".
+                let mut parts = self.id.splitn(2, '-');
+                let mc_ver = parts.next().unwrap_or(&self.id);
+                let loader_ver = parts.next().unwrap_or("");
+                if loader_ver.is_empty() {
+                    // No '-' found — can't construct a valid Fabric ID.
+                    // Fall back to the raw ID to avoid a panic.
+                    self.id.clone()
+                } else {
+                    format!("fabric-loader-{loader_ver}-{mc_ver}")
+                }
             }
             VersionBase::LITELOADER => self.id.clone(),
+            OPTIFINE => self.id.clone(),
         }
     }
     pub fn get_fabric_loader_id(&self) -> String {
-        self.id.split("-").collect::<Vec<&str>>()[1].to_string()
+        // "1.18.2-0.19.3" → "0.19.3" (the loader version, 2nd part).
+        self.id.splitn(2, '-').nth(1).unwrap_or("").to_string()
     }
     pub fn get_fabric_version_id(&self) -> String {
-        self.id.split("-").collect::<Vec<&str>>()[0].to_string()
+        // "1.18.2-0.19.3" → "1.18.2" (the MC version, 1st part).
+        self.id.splitn(2, '-').next().unwrap_or("").to_string()
+    }
+
+    pub fn get_forge_version_id(&self) -> String {
+        self.id
+            .split_once('-')
+            .map_or_else(String::new, |(minecraft, _)| minecraft.to_string())
+    }
+
+    pub fn get_optifine_version_id(&self) -> String {
+        self.id
+            .split_once("-OptiFine_")
+            .map_or_else(String::new, |(minecraft, _)| minecraft.to_string())
+    }
+
+    pub fn get_optifine_release(&self) -> Option<(String, String)> {
+        if let Some(metadata) = self.date.strip_prefix("OPTIFINE|") {
+            let mut fields = metadata.splitn(3, '|');
+            let kind = fields.next()?;
+            let patch = fields.next()?;
+            if !kind.is_empty() && !patch.is_empty() {
+                return Some((kind.to_string(), patch.to_string()));
+            }
+        }
+
+        let (_, release) = self.id.split_once("-OptiFine_")?;
+        let mut fields = release.splitn(3, '_');
+        let edition = fields.next()?;
+        let tier = fields.next()?;
+        let patch = fields.next()?;
+        if edition.is_empty() || tier.is_empty() || patch.is_empty() {
+            return None;
+        }
+        Some((format!("{edition}_{tier}"), patch.to_string()))
+    }
+
+    pub fn get_optifine_filename(&self) -> Option<String> {
+        let metadata = self.date.strip_prefix("OPTIFINE|")?;
+        let filename = metadata.splitn(3, '|').nth(2)?;
+        if filename.is_empty()
+            || !filename
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric() || ".-_".contains(character))
+        {
+            return None;
+        }
+        Some(filename.to_string())
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OptifineVersion {
+    pub mcversion: String,
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub patch: String,
+    #[serde(default)]
+    pub filename: String,
+}
+
+impl OptifineVersion {
+    pub fn profile_id(&self) -> String {
+        format!("{}-OptiFine_{}_{}", self.mcversion, self.kind, self.patch)
     }
 }
 
@@ -254,196 +343,68 @@ pub struct ForgeLibraryDownloads {
 pub struct ForgeArtifact {
     pub path: Option<String>,
     pub url: String,
-    pub size: Option<u64>,
-    pub sha1: Option<String>,
 }
 
-// helper converter to adapter from Library struct
-pub fn library_from_value_legacy(value: &Value) -> LibraryInfo {
+// Helper: convert a `serde_json::Value` describing a Minecraft library
+// into a typed `LibraryInfo`. Returns `AppError::JsonParseFailed` on
+// missing fields so callers can skip the bad entry instead of panicking.
+pub fn library_from_value_legacy(value: &Value) -> Result<LibraryInfo, AppError> {
     let library_name = value
         .get("name")
-        .expect("Parsing library_name failed")
-        .as_str()
-        .expect("Parsing library_name failed");
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::JsonParseFailed("library missing 'name'".to_string()))?;
 
-    let library_downloads = value.get("downloads").unwrap();
+    let library_downloads = value.get("downloads").ok_or_else(|| {
+        AppError::JsonParseFailed(format!("library '{library_name}' missing 'downloads'"))
+    })?;
 
-    let library_artifact = library_downloads
-        .get("artifact")
-        .expect("Parsing library_downloads failed");
+    let library_artifact = library_downloads.get("artifact").ok_or_else(|| {
+        AppError::JsonParseFailed(format!("library '{library_name}' missing 'artifact'"))
+    })?;
 
     let library_path = if library_artifact.get("path").is_none() {
-        let args = library_name.split(":").collect::<Vec<&str>>();
-
-        let group_id = args[0].replace(".", "/");
-
+        let args: Vec<&str> = library_name.split(':').collect();
+        if args.len() != 3 {
+            return Err(AppError::JsonParseFailed(format!(
+                "library '{library_name}' has invalid maven coordinate"
+            )));
+        }
+        let group_id = args[0].replace('.', "/");
         let artifact = args[1];
-
         let version = args[2];
-
         let artifact_version = format!("{artifact}-{version}.jar");
-
         format!("{group_id}/{artifact}/{version}/{artifact_version}")
     } else {
-        library_artifact["path"].as_str().unwrap().to_string()
+        library_artifact["path"]
+            .as_str()
+            .ok_or_else(|| {
+                AppError::JsonParseFailed(format!("library '{library_name}' has non-string path"))
+            })?
+            .to_string()
     };
 
     let library_url = library_artifact
         .get("url")
-        .expect("Parsing library_url failed")
-        .as_str();
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| {
+            AppError::JsonParseFailed(format!("library '{library_name}' missing url"))
+        })?;
 
     let library_size = library_artifact
         .get("size")
-        .expect("Parsing library_size failed")
-        .as_u64()
-        .expect("Parsing library_size failed");
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
 
-    LibraryInfo {
+    let library_sha1 = library_artifact
+        .get("sha1")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    Ok(LibraryInfo {
         name: library_name.to_string(),
-
         size: library_size,
-
-        path: library_path.to_string(),
-
-        url: library_url.unwrap().to_string(),
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DownloadStage {
-    Manifest,
-    Java,
-    Libraries,
-    Client,
-    Assets,
-    Logging,
-    ForgeInstaller,
-    FabricInstaller,
-    Done,
-    Mod
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DownloadProgress {
-    pub stage: DownloadStage,
-    pub stage_name: String,
-    pub current_file: usize,
-    pub total_files: usize,
-    pub current_bytes: u64,
-    pub total_bytes: u64,
-    pub file_name: String,
-    pub global_percentage: f32,
-    pub stage_percentage: f32,
-}
-
-#[derive(Clone)]
-struct StageSpan {
-    pub start: f32,
-    pub end: f32,
-}
-
-#[derive(Clone)]
-pub struct PipelineProgressTracker {
-    pub app_handle: AppHandle,
-    pub stages: HashMap<DownloadStage, StageSpan>,
-    pub current_stage: DownloadStage,
-    pub current_file: usize,
-    pub total_files: usize,
-}
-
-impl PipelineProgressTracker {
-    pub fn new(app_handle: AppHandle, stage_weights: &[(DownloadStage, f32)]) -> Self {
-        let total_weight: f32 = stage_weights.iter().map(|(_, w)| w).sum();
-        let mut stages = HashMap::new();
-        let mut accumulated = 0.0;
-
-        for (stage, weight) in stage_weights {
-            let portion = (weight / total_weight) * 100.0;
-            stages.insert(
-                *stage,
-                StageSpan {
-                    start: accumulated,
-                    end: accumulated + portion,
-                },
-            );
-            accumulated += portion;
-        }
-
-        let initial_stage = stage_weights
-            .first()
-            .map(|(s, _)| *s)
-            .unwrap_or(DownloadStage::Done);
-
-        Self {
-            app_handle,
-            stages,
-            current_stage: initial_stage,
-            current_file: 0,
-            total_files: 1,
-        }
-    }
-
-    pub fn start_stage(&mut self, stage: DownloadStage, total_files: usize) {
-        self.current_stage = stage;
-        self.total_files = total_files.max(1);
-        self.current_file = 0;
-        self.report("", 0, 0);
-    }
-
-    pub fn next_file(&mut self) {
-        self.current_file = (self.current_file + 1).min(self.total_files);
-    }
-
-    pub fn report(&self, file_name: &str, current_bytes: u64, total_bytes: u64) {
-        let span = self
-            .stages
-            .get(&self.current_stage)
-            .cloned()
-            .unwrap_or(StageSpan {
-                start: 0.0,
-                end: 100.0,
-            });
-
-        let file_ratio = (self.current_file as f32) / (self.total_files as f32);
-        let chunk_ratio = if total_bytes > 0 {
-            (current_bytes as f32 / total_bytes as f32) * (1.0 / self.total_files as f32)
-        } else {
-            0.0
-        };
-
-        let stage_progress_ratio = (file_ratio + chunk_ratio).clamp(0.0, 1.0);
-        let stage_percentage = stage_progress_ratio * 100.0;
-
-        let global_percentage = span.start + (stage_progress_ratio * (span.end - span.start));
-
-        let stage_name = match self.current_stage {
-            DownloadStage::Manifest => "Reading Manifest",
-            DownloadStage::Java => "Downloading Java Runtime",
-            DownloadStage::Libraries => "Downloading Libraries",
-            DownloadStage::Client => "Downloading Game Client",
-            DownloadStage::Assets => "Downloading Game Assets",
-            DownloadStage::Logging => "Configuring Logging",
-            DownloadStage::ForgeInstaller => "Installing Forge",
-            DownloadStage::FabricInstaller => "Installing Fabric",
-            DownloadStage::Mod => "Installing Mods",
-            DownloadStage::Done => "Completed",
-        }
-        .to_string();
-
-        let progress = DownloadProgress {
-            stage: self.current_stage,
-            stage_name,
-            current_file: self.current_file,
-            total_files: self.total_files,
-            current_bytes,
-            total_bytes,
-            file_name: file_name.to_string(),
-            global_percentage: global_percentage.clamp(0.0, 100.0),
-            stage_percentage: stage_percentage.clamp(0.0, 100.0),
-        };
-
-        let _ = self.app_handle.emit("download-progress", progress);
-    }
+        path: library_path,
+        url: library_url.to_string(),
+        sha1: library_sha1,
+    })
 }

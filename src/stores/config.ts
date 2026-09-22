@@ -1,10 +1,9 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import {Profile} from "@/invokes";
 
 interface ConfigStore {
-  profile: Profile | null;
-  setProfile: (profile: Profile | null) => void;
+  profile: string | null;
+  setProfile: (profile: string | null) => void;
   setVersion: (version: string | null) => void;
   version: string | null;
 }

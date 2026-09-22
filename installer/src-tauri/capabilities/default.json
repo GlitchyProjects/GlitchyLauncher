@@ -1,0 +1,12 @@
+{
+  "identifier": "default",
+  "description": "Permissions for the Glitchy web setup UI",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging",
+    "core:event:default",
+    "dialog:allow-open"
+  ]
+}

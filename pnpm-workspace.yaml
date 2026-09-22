@@ -5,5 +5,4 @@ allowBuilds:
   pngquant-bin: true
   sharp: true
   tauri: true
-  tree-sitter-python: false
   zopflipng-bin: true

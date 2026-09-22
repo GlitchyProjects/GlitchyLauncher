@@ -16,7 +16,7 @@ export function backend<T extends keyof Invokes>(
       .then((result) => {
         resolve(result);
       })
-      .catch((error: InvokeError<Invokes[T]["custom_error"]>) => {
+      .catch((error: InvokeError) => {
         reject(error);
       });
   });

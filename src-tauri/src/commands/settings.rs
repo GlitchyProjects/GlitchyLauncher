@@ -1,12 +1,9 @@
-use std::sync::Arc;
-use crate::models::config::{Bool, Config, NativeChoice};
-use crate::models::error::AppError;
-use crate::models::java::Java;
-use crate::models::profiles::{get_profile, Profile};
-use crate::services::utils::create_reqwest_client;
-use crate::AppState;
 use tauri::{command, State};
-use crate::services::directory_manager::auto_detect_javas;
+
+use crate::models::config::Config;
+use crate::models::error::AppError;
+use crate::models::profiles::{get_profile, Profile};
+use crate::AppState;
 
 #[command]
 pub async fn set_maximum_ram_usage(
@@ -17,6 +14,7 @@ pub async fn set_maximum_ram_usage(
     config.launch_options.ram_usage_max = ram_usage;
     Ok(())
 }
+
 #[command]
 pub async fn get_maximum_ram_usage(state: State<'_, AppState>) -> Result<u64, AppError> {
     Ok(state.config.read().await.launch_options.ram_usage_max)
@@ -31,119 +29,50 @@ pub async fn set_minimum_ram_usage(
     config.launch_options.ram_usage_min = ram_usage;
     Ok(())
 }
+
 #[command]
 pub async fn get_minimum_ram_usage(state: State<'_, AppState>) -> Result<u64, AppError> {
     Ok(state.config.read().await.launch_options.ram_usage_min)
 }
 
 #[command]
-pub async fn set_use_dedicated_gpu(
-    state: State<'_, AppState>,
-    toggle: bool,
-) -> Result<(), AppError> {
-    let mut config = state.config.write().await;
-    config.launch_options.use_dedicated_gpu = Bool::new(toggle);
-    Ok(())
-}
-#[command]
-pub async fn should_use_dedicated_gpu(state: State<'_, AppState>) -> Result<bool, AppError> {
-    Ok(state
-        .config
-        .read()
-        .await
-        .launch_options
-        .use_dedicated_gpu
-        .boolean())
+pub async fn get_language(state: State<'_, AppState>) -> Result<String, AppError> {
+    Ok(state.config.read().await.launcher_settings.language.clone())
 }
 
-#[command]
-pub async fn get_language(state: State<'_, AppState>) -> Result<String, AppError> {
-    let cfg = state.config.read().await;
-    Ok(cfg.launcher_settings.language.clone())
-}
 #[command]
 pub async fn set_language(state: State<'_, AppState>, lang: String) -> Result<(), AppError> {
     let mut config = state.config.write().await;
     config.launcher_settings.language = lang;
     Ok(())
 }
+
 #[command]
 pub async fn should_exit_on_launch(state: State<'_, AppState>) -> Result<bool, AppError> {
-    let cfg = state.config.read().await;
-    Ok(cfg.launcher_settings.exit_on_launch.boolean().clone())
+    Ok(state.config.read().await.launcher_settings.exit_on_launch)
 }
 
 #[command]
-pub async fn set_exit_on_launch(state: State<'_, AppState>, toggle: bool) -> Result<(), AppError> {
+pub async fn set_exit_on_launch(
+    state: State<'_, AppState>,
+    toggle: bool,
+) -> Result<(), AppError> {
     let mut config = state.config.write().await;
-    config.launcher_settings.exit_on_launch = Bool::new(toggle);
-    Ok(())
-}
-
-#[command]
-pub async fn get_proxy(state: State<'_, AppState>) -> Result<String, AppError> {
-    let cfg = state.config.read().await;
-    Ok(cfg.download_settings.proxy.clone())
-}
-
-#[command]
-pub async fn set_proxy(state: State<'_, AppState>, proxy: String) -> Result<(), AppError> {
-    let mut config = state.config.write().await;
-    config.download_settings.proxy = proxy;
-    state.client.store(Arc::new(create_reqwest_client(&config)?));
-    Ok(())
-}
-
-#[command]
-pub async fn get_java(state: State<'_, AppState>) -> Result<NativeChoice, AppError> {
-    let cfg = state.config.read().await;
-    Ok(cfg.native_libraries.java.clone())
-}
-
-#[command]
-pub async fn set_java(state: State<'_, AppState>, java: NativeChoice) -> Result<(), AppError> {
-    let mut config = state.config.write().await;
-    config.native_libraries.java = java;
-    Ok(())
-}
-
-#[command]
-pub async fn get_openal(state: State<'_, AppState>) -> Result<NativeChoice, AppError> {
-    let cfg = state.config.read().await;
-    Ok(cfg.native_libraries.openal.clone())
-}
-
-#[command]
-pub async fn set_openal(state: State<'_, AppState>, openal: NativeChoice) -> Result<(), AppError> {
-    let mut config = state.config.write().await;
-    config.native_libraries.openal = openal;
-    Ok(())
-}
-
-#[command]
-pub async fn get_glfw(state: State<'_, AppState>) -> Result<NativeChoice, AppError> {
-    let cfg = state.config.read().await;
-    Ok(cfg.native_libraries.glfw.clone())
-}
-
-#[command]
-pub async fn set_glfw(state: State<'_, AppState>, glfw: NativeChoice) -> Result<(), AppError> {
-    let mut config = state.config.write().await;
-    config.native_libraries.glfw = glfw;
+    config.launcher_settings.exit_on_launch = toggle;
     Ok(())
 }
 
 #[command]
 pub async fn save(state: State<'_, AppState>) -> Result<(), AppError> {
-    let cfg = state.config.write().await;
-    cfg.write_to_file()?;
-    Ok(())
+    let cfg = state.config.read().await;
+    cfg.write_to_file()
 }
 
 #[command]
 pub async fn get_total_ram() -> Result<u64, AppError> {
-    let ram = sys_info::mem_info().expect("Failed to find system's total memory! ");
-    Ok(ram.total / 1000)
+    let ram = sys_info::mem_info()
+        .map_err(|e| AppError::UnknownError(format!("mem_info failed: {e}")))?;
+    Ok(ram.total)
 }
 
 #[command]
@@ -151,11 +80,25 @@ pub async fn set_config(state: State<'_, AppState>, config: Config) -> Result<()
     let mut cfg = state.config.write().await;
     cfg.launch_options = config.launch_options;
     cfg.launcher_settings = config.launcher_settings;
-    cfg.write_to_file()?;
-    Ok(())
+    cfg.write_to_file()
+}
+
+/// Get the currently-selected profile, or `null` when none exists.
+#[command]
+pub async fn get_selected_profile(
+    state: State<'_, AppState>,
+) -> Result<Option<Profile>, AppError> {
+    let cfg = state.config.read().await;
+    let uuid = cfg.launch_options.selected_profile;
+    Ok(get_profile(&uuid))
 }
 
 #[command]
-pub async fn get_auto_detected_java_versions() -> Result<Vec<Java>, AppError> {
-    auto_detect_javas()
+pub async fn set_selected_profile(
+    state: State<'_, AppState>,
+    profile: Profile,
+) -> Result<(), AppError> {
+    let mut cfg = state.config.write().await;
+    cfg.launch_options.selected_profile = profile.uuid;
+    Ok(())
 }

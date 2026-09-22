@@ -4,26 +4,20 @@ import {
   Tick01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+import type React from "react";
+import { useState } from "react";
 import { LoadingSwap } from "@/components/ui/animated/swapper";
-import { Button } from "@/components/ui/button";
 import { useBackend, useBackendMutation } from "@/hooks/use-backend";
+import type { Mirror as BackendMirror } from "@/invokes";
 
-interface Mirror {
-  description: string;
-  name: string;
-  url: string;
-}
+type Mirror = BackendMirror;
 
 export function MirrorSettings() {
-  const { t } = useTranslation();
-
   const [localCurrentMirror, setLocalCurrentMirror] = useState<Mirror | null>(
     null
   );
+  const [isDragging, setIsDragging] = useState<boolean>(false);
   const [importError, setImportError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const mirrorsQuery = useBackend({ name: "get_available_mirrors" });
   const mirrorQuery = useBackend({ name: "get_mirror" });
@@ -51,31 +45,38 @@ export function MirrorSettings() {
     try {
       setImportError(null);
       await importMirrorMutation({ json: jsonText });
+
       await mirrorsQuery.refetch();
       await saveMutation(undefined);
     } catch (err: unknown) {
       setImportError(
-        typeof err === "string" ? err : t("mirrorSettings.invalidJsonError")
+        typeof err === "string"
+          ? err
+          : "Invalid JSON format or missing required properties"
       );
+      console.error("Mirror injection runtime error:", err);
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const [file] = e.target.files ?? [];
-    if (!file) {
-      return;
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const [file] = e.dataTransfer.files;
+    if (
+      file &&
+      (file.type === "application/json" || file.name.endsWith(".json"))
+    ) {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        if (event.target?.result && typeof event.target.result === "string") {
+          await processJsonString(event.target.result);
+        }
+      };
+      reader.readAsText(file);
+    } else {
+      setImportError("Please drop a valid file ending in .json format");
     }
-
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      if (event.target?.result && typeof event.target.result === "string") {
-        await processJsonString(event.target.result);
-      }
-    };
-    reader.readAsText(file);
-
-    // Reset so the same file can be re-imported if needed
-    e.target.value = "";
   };
 
   return (
@@ -88,10 +89,10 @@ export function MirrorSettings() {
               icon={GlobalIcon}
               size={16}
             />{" "}
-            {t("mirrorSettings.title")}
+            Asset Repository Mirrors
           </h3>
           <p className="text-muted-foreground text-xs">
-            {t("mirrorSettings.description")}
+            Select or drop explicit index maps to bypass primary servers.
           </p>
         </div>
 
@@ -119,7 +120,8 @@ export function MirrorSettings() {
                     </div>
                   )}
                   <div className="truncate font-mono text-[10px] text-muted-foreground/60">
-                    {mirror.url}
+                    {mirror.url ??
+                      `${mirror.maps ? Object.keys(mirror.maps).length : 0} host mappings`}
                   </div>
                 </div>
                 {isSelected && (
@@ -135,32 +137,44 @@ export function MirrorSettings() {
             );
           })}
         </div>
-
-        <div className="flex flex-col gap-2">
-          <input
-            accept=".json"
-            className="sr-only"
-            onChange={handleFileChange}
-            ref={fileInputRef}
-            tabIndex={-1}
-            type="file"
+        {/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: drag-and-drop dropzone has no keyboard-equivalent interactive element */}
+        <section
+          aria-label="Drag & drop mirror JSON configuration manifest"
+          className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition-all ${
+            isDragging
+              ? "border-primary bg-primary/5 text-primary"
+              : "border-border/60 bg-secondary/10 text-muted-foreground hover:bg-secondary/20"
+          }`}
+          onDragLeave={() => setIsDragging(false)}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDrop={handleDrop}
+        >
+          <HugeiconsIcon
+            className={
+              isDragging
+                ? "animate-pulse text-primary"
+                : "text-muted-foreground/60"
+            }
+            icon={FileAddIcon}
+            size={24}
           />
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <HugeiconsIcon data-icon="inline-start" icon={FileAddIcon} />
-            {t("mirrorSettings.importButton")}
-          </Button>
+          <div className="font-medium text-foreground text-xs">
+            Drag & Drop Mirror JSON configuration manifest
+          </div>
+          <div className="text-[10px]">
+            Inject files directly into your filesystem architecture
+            configurations
+          </div>
 
           {importError && (
-            <div className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-1 font-mono text-[10px] text-destructive">
-              ⚠️ {t("mirrorSettings.errorPrefix")}: {importError}
+            <div className="mt-2 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-1 font-mono text-[10px] text-destructive">
+              ⚠️ Error: {importError}
             </div>
           )}
-        </div>
+        </section>
       </div>
     </LoadingSwap>
   );

@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Glitchy Launcher Setup</title>
+  <style>
+    :root {
+      --bg-0: #0d1324;
+      --bg-1: #172646;
+      --card: rgba(22, 32, 56, 0.72);
+      --border: rgba(148, 188, 228, 0.14);
+      --text: #eaf2fc;
+      --muted: #8fa3bf;
+      --blue: #2484ec;
+      --blue-soft: #7fb2e6;
+      --green: #34d399;
+      --red: #f87171;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: "Segoe UI", "Inter", system-ui, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(900px 600px at 15% -10%, rgba(36, 132, 236, 0.20), transparent 60%),
+        radial-gradient(700px 500px at 110% 110%, rgba(76, 140, 204, 0.18), transparent 60%),
+        linear-gradient(160deg, var(--bg-0), var(--bg-1));
+      user-select: none;
+      -webkit-user-select: none;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── titlebar ─────────────────────────────────────── */
+    .titlebar {
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 8px 0 16px;
+      flex-shrink: 0;
+    }
+    .titlebar .name {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .titlebar button {
+      width: 32px; height: 28px;
+      border: 0; border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 150ms ease;
+    }
+    .titlebar button:hover { background: rgba(248, 113, 113, 0.15); color: var(--red); }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 40px 40px;
+      min-height: 0;
+    }
+
+    .screen {
+      width: 100%;
+      max-width: 440px;
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      animation: fadeUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .screen.active { display: flex; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    .logo-wrap {
+      margin-top: 28px;
+      width: 128px; height: 128px;
+      border-radius: 28px;
+      background: radial-gradient(circle at 50% 42%, rgba(36, 132, 236, 0.28), rgba(36, 132, 236, 0.05) 62%, transparent 72%);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 0 1px var(--border), 0 0 42px rgba(36, 132, 236, 0.22);
+    }
+    .logo-wrap img { width: 96px; height: 96px; }
+
+    h1 { font-size: 28px; font-weight: 800; margin-top: 22px; }
+    h1 .accent { color: var(--blue-soft); }
+    .subtitle { color: var(--muted); font-size: 13px; margin-top: 6px; }
+
+    /* ── install options card ─────────────────────────── */
+    .card {
+      width: 100%;
+      margin-top: 26px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 34px rgba(0,0,0,0.4);
+    }
+    .card .label {
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .path-row { display: flex; gap: 8px; }
+    .path-row input {
+      flex: 1;
+      min-width: 0;
+      background: rgba(10, 14, 26, 0.8);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 13px;
+      padding: 10px 12px;
+      user-select: text;
+      -webkit-user-select: text;
+      transition: border-color 160ms ease;
+    }
+    .path-row input:focus { outline: none; border-color: rgba(36, 132, 236, 0.6); }
+    .btn-ghost {
+      background: rgba(36, 132, 236, 0.10);
+      border: 1px solid var(--border);
+      color: var(--blue-soft);
+      border-radius: 10px;
+      padding: 0 14px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 160ms ease;
+    }
+    .btn-ghost:hover { background: rgba(36, 132, 236, 0.2); }
+
+    .hint { color: var(--muted); font-size: 11.5px; margin-top: 14px; line-height: 1.6; }
+    .hint .dot { color: var(--blue-soft); }
+
+    /* ── buttons ──────────────────────────────────────── */
+    .actions { margin-top: auto; padding-top: 24px; display: flex; gap: 12px; width: 100%; justify-content: center; }
+    .btn {
+      min-width: 160px;
+      padding: 13px 26px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      font-size: 15px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 180ms ease;
+    }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.45; cursor: default; }
+    .btn-primary {
+      background: linear-gradient(135deg, #2484ec, #247cd4);
+      color: #fff;
+      box-shadow: 0 0 0 1px rgba(36, 132, 236, 0.4), 0 8px 26px rgba(36, 132, 236, 0.35);
+    }
+    .btn-primary:hover:not(:disabled) { box-shadow: 0 0 0 1px rgba(36, 132, 236, 0.6), 0 10px 32px rgba(36, 132, 236, 0.5); }
+    .btn-secondary { background: rgba(22, 32, 56, 0.7); color: var(--text); }
+    .btn-secondary:hover:not(:disabled) { background: rgba(30, 44, 76, 0.85); }
+    .btn-danger {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: #fff;
+      box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.4), 0 8px 26px rgba(239, 68, 68, 0.35);
+    }
+    .btn-danger:hover:not(:disabled) {
+      box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.6), 0 10px 32px rgba(239, 68, 68, 0.5);
+    }
+
+    /* ── progress ─────────────────────────────────────── */
+    .progress-shell {
+      width: 100%;
+      margin-top: 40px;
+      height: 14px;
+      border-radius: 999px;
+      background: rgba(10, 14, 26, 0.9);
+      border: 1px solid var(--border);
+      padding: 2px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #2484ec, #7fb2e6);
+      box-shadow: 0 0 14px rgba(36, 132, 236, 0.6);
+      transition: width 320ms cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+    }
+    .progress-fill::after {
+      content: "";
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+      animation: shimmer 1.6s infinite;
+    }
+    @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+    .stage-text { margin-top: 16px; color: var(--text); font-size: 14px; }
+    .pct { color: var(--muted); font-size: 12px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+    .spinner {
+      width: 22px; height: 22px;
+      margin-top: 30px;
+      border-radius: 50%;
+      border: 3px solid rgba(36, 132, 236, 0.2);
+      border-top-color: var(--blue);
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .status-icon {
+      margin-top: 32px;
+      width: 96px; height: 96px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 44px;
+    }
+    .status-icon.ok {
+      color: var(--green);
+      background: rgba(52, 211, 153, 0.10);
+      box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.3), 0 0 36px rgba(52, 211, 153, 0.2);
+    }
+    .status-icon.err {
+      color: var(--red);
+      background: rgba(248, 113, 113, 0.10);
+      box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.3), 0 0 36px rgba(248, 113, 113, 0.18);
+    }
+    .error-detail {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 12.5px;
+      text-align: center;
+      line-height: 1.6;
+      max-width: 380px;
+    }
+  </style>
+</head>
+<body>
+  <div class="titlebar" data-tauri-drag-region>
+    <span class="name" id="titlebar-name">Glitchy Launcher Setup</span>
+    <button id="btn-close" title="Close">✕</button>
+  </div>
+
+  <main>
+    <!-- 0 · Uninstall Confirm -->
+    <section id="screen-uninstall-confirm" class="screen">
+      <div class="logo-wrap"><img src="assets/logo.png" alt="Glitchy" draggable="false" /></div>
+      <h1>Uninstall <span class="accent">Glitchy Launcher</span></h1>
+      <p class="subtitle">Remove Glitchy Launcher and its components · v1.2.1</p>
+
+      <div class="card">
+        <div class="label">Installed Location</div>
+        <div class="path-row">
+          <input id="uninstall-dir" readonly spellcheck="false" style="opacity: 0.85; cursor: default;" />
+        </div>
+        <div style="margin-top: 14px; display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" id="chk-remove-data" style="cursor: pointer; width: 16px; height: 16px; accent-color: var(--blue);" />
+          <label for="chk-remove-data" style="color: var(--muted); font-size: 12px; cursor: pointer; user-select: none;">
+            Remove user accounts, settings, and instance data
+          </label>
+        </div>
+        <p class="hint">
+          <span class="dot">●</span> Desktop and Start Menu shortcuts will be removed<br />
+          <span class="dot">●</span> All core game binaries and files will be cleanly uninstalled
+        </p>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-secondary" id="btn-cancel-uninstall">Cancel</button>
+        <button class="btn btn-danger" id="btn-start-uninstall">Uninstall</button>
+      </div>
+    </section>
+
+    <!-- 1 · Welcome -->
+    <section id="screen-welcome" class="screen active">
+      <div class="logo-wrap"><img src="assets/logo.png" alt="Glitchy" draggable="false" /></div>
+      <h1>Glitchy <span class="accent">Launcher</span></h1>
+      <p class="subtitle">The most advanced launcher · v1.2.1</p>
+
+      <div class="card">
+        <div class="label">Install location</div>
+        <div class="path-row">
+          <input id="install-dir" spellcheck="false" />
+          <button class="btn-ghost" id="btn-browse">Browse…</button>
+        </div>
+        <p class="hint">
+          <span class="dot">●</span> Desktop &amp; Start Menu shortcuts are created automatically<br />
+          <span class="dot">●</span> Windows may ask for administrator permission (UAC)
+        </p>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="btn-install">Install</button>
+      </div>
+    </section>
+
+    <!-- 2 · Installing / Uninstalling -->
+    <section id="screen-installing" class="screen">
+      <div class="logo-wrap"><img src="assets/logo.png" alt="Glitchy" draggable="false" /></div>
+      <h1 id="installing-title" style="font-size:22px;">Installing…</h1>
+      <div class="progress-shell"><div class="progress-fill" id="bar"></div></div>
+      <p class="stage-text" id="stage">Preparing installation…</p>
+      <p class="pct" id="pct">0%</p>
+      <div class="actions">
+        <button class="btn btn-secondary" id="btn-cancel">Cancel</button>
+      </div>
+    </section>
+
+    <!-- 3 · Success -->
+    <section id="screen-done" class="screen">
+      <div class="status-icon ok">✓</div>
+      <h1 id="done-title" style="font-size:24px;">Glitchy Launcher installed!</h1>
+      <p class="subtitle" id="done-subtitle">Ready to play. See you in the game.</p>
+      <div class="actions">
+        <button class="btn btn-primary" id="btn-launch">Launch now</button>
+        <button class="btn btn-secondary" id="btn-finish">Finish</button>
+      </div>
+    </section>
+
+    <!-- 4 · Error -->
+    <section id="screen-error" class="screen">
+      <div class="status-icon err">✕</div>
+      <h1 id="error-title" style="font-size:24px;">Installation failed</h1>
+      <p class="error-detail" id="error-detail"></p>
+      <div class="actions">
+        <button class="btn btn-primary" id="btn-retry">Try again</button>
+        <button class="btn btn-secondary" id="btn-finish2">Close</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const tauri = window.__TAURI__;
+    const invoke = tauri?.core?.invoke;
+
+    const screens = ["welcome", "uninstall-confirm", "installing", "done", "error"];
+    function show(name) {
+      for (const s of screens) {
+        const el = $("screen-" + s);
+        if (el) el.classList.toggle("active", s === name);
+      }
+    }
+
+    let isUninstall = false;
+    let dir = "";
+
+    async function init() {
+      // Fallback UI when opened outside of Tauri (e.g. in a browser).
+      if (!invoke) {
+        $("install-dir").value = "C:\\Program Files\\Glitchy Launcher";
+        $("btn-install").disabled = true;
+        return;
+      }
+
+      try {
+        isUninstall = await invoke("is_uninstall_mode");
+      } catch {
+        isUninstall = false;
+      }
+
+      if (isUninstall) {
+        document.title = "Glitchy Launcher Uninstaller";
+        $("titlebar-name").textContent = "Glitchy Launcher Uninstaller";
+        try {
+          dir = await invoke("get_installed_dir");
+        } catch {
+          dir = await invoke("default_install_dir");
+        }
+        $("uninstall-dir").value = dir;
+        show("uninstall-confirm");
+      } else {
+        dir = await invoke("default_install_dir");
+        $("install-dir").value = dir;
+        show("welcome");
+      }
+
+      await tauri.event.listen("setup-progress", (e) => {
+        $("bar").style.width = e.payload.percent + "%";
+        $("stage").textContent = e.payload.stage;
+        $("pct").textContent = e.payload.percent + "%";
+      });
+
+      await tauri.event.listen("setup-finished", (e) => {
+        const code = e.payload.code;
+        if (code === 0) {
+          $("bar").style.width = "100%";
+          $("pct").textContent = "100%";
+          if (isUninstall) {
+            $("done-title").textContent = "Glitchy Launcher uninstalled";
+            $("done-subtitle").textContent = "All launcher files have been cleanly removed.";
+            $("btn-launch").style.display = "none";
+            $("btn-finish").textContent = "Finish";
+          }
+          show("done");
+        } else if (code === 1223) {
+          show(isUninstall ? "uninstall-confirm" : "welcome");
+        } else {
+          $("error-title").textContent = isUninstall ? "Uninstallation failed" : "Installation failed";
+          $("error-detail").textContent =
+            code === -1
+              ? "The process could not be started or was interrupted. Please try again."
+              : `The process exited with code ${code}. If you declined permissions, click "Try again".`;
+          show("error");
+        }
+      });
+    }
+
+    $("btn-browse")?.addEventListener("click", async () => {
+      if (!invoke) return;
+      const picked = await invoke("plugin:dialog|open", {
+        options: { directory: true, title: "Choose install folder" },
+      });
+      if (typeof picked === "string" && picked) {
+        dir = picked;
+        $("install-dir").value = picked;
+      }
+    });
+
+    $("btn-install")?.addEventListener("click", async () => {
+      if (!invoke) return;
+      dir = $("install-dir").value.trim();
+      if (!dir) return;
+      $("bar").style.width = "0%";
+      $("stage").textContent = "Preparing installation…";
+      $("pct").textContent = "0%";
+      $("installing-title").textContent = "Installing…";
+      show("installing");
+      try {
+        await invoke("start_install", { dir });
+      } catch (err) {
+        $("error-detail").textContent = String(err);
+        show("error");
+      }
+    });
+
+    $("btn-start-uninstall")?.addEventListener("click", async () => {
+      if (!invoke) return;
+      dir = $("uninstall-dir").value.trim();
+      if (!dir) return;
+      $("bar").style.width = "0%";
+      $("stage").textContent = "Preparing uninstallation…";
+      $("pct").textContent = "0%";
+      $("installing-title").textContent = "Uninstalling…";
+      show("installing");
+      const removeUserData = $("chk-remove-data")?.checked ?? false;
+      try {
+        await invoke("start_uninstall", { dir, removeUserData });
+      } catch (err) {
+        $("error-detail").textContent = String(err);
+        show("error");
+      }
+    });
+
+    $("btn-cancel-uninstall")?.addEventListener("click", () => tauri?.window?.getCurrentWindow?.().close());
+    $("btn-cancel")?.addEventListener("click", () => invoke?.("cancel_install"));
+    $("btn-retry")?.addEventListener("click", () => show(isUninstall ? "uninstall-confirm" : "welcome"));
+    $("btn-launch")?.addEventListener("click", async () => {
+      try { await invoke("launch_installed", { dir }); } catch {}
+      tauri?.window?.getCurrentWindow?.().close();
+    });
+
+    $("btn-finish")?.addEventListener("click", async () => {
+      if (isUninstall && invoke) {
+        try {
+          await invoke("finish_uninstall", { dir });
+          return;
+        } catch {}
+      }
+      tauri?.window?.getCurrentWindow?.().close();
+    });
+
+    $("btn-finish2")?.addEventListener("click", () => tauri?.window?.getCurrentWindow?.().close());
+    $("btn-close")?.addEventListener("click", () => tauri?.window?.getCurrentWindow?.().close());
+
+    init();
+  </script>
+</body>
+</html>

@@ -1,328 +1,428 @@
-import { useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
-import { Alert01Icon, PlayIcon, RepairIcon } from "@hugeicons/core-free-icons";
+import { Alert01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { app } from "@tauri-apps/api";
 import { listen } from "@tauri-apps/api/event";
+import { Check, Pencil, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { ActionButton } from "@/components/ui/action-button";
+import { Button } from "@/components/ui/button";
 import {
-    Combobox,
-    ComboboxContent,
-    ComboboxEmpty,
-    ComboboxInput,
-    ComboboxItem,
-    ComboboxList,
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
 } from "@/components/ui/combobox";
 import { Empty, EmptyTitle } from "@/components/ui/empty";
+import { Input } from "@/components/ui/input";
 import { useBackend, useBackendMutation } from "@/hooks/use-backend";
+import type { InstanceSummary, LaunchProgress } from "@/invokes";
+import { cn } from "@/lib/utils";
 import { errorText } from "@/messages";
 import { useConfig } from "@/stores/config";
+import { useAccountStore } from "@/stores/account";
 
-export interface DownloadProgress {
-    stage: string;
-    stage_name: string;
-    current_file: number;
-    total_files: number;
-    current_bytes: number;
-    total_bytes: number;
-    file_name: string;
-    global_percentage: number;
-    stage_percentage: number;
+const WALLPAPERS = ["/wallpapers/wallpaper.png"];
+
+function WallpaperSlideshow() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <img
+        alt="Minecraft artwork"
+        className="absolute inset-0 size-full object-cover object-center"
+        height={1080}
+        src="/wallpapers/wallpaper.png"
+        width={1920}
+      />
+    </div>
+  );
 }
-
-const MINECRAFT_MINOR_VERSION_REGEX = /1\.(\d+)/;
-
-const getPanoramaUrl = (version: string | null, face: number) => {
-    if (!version) {
-        return `https://minecraft.wiki/images/1.21_panorama_${face}.png`;
-    }
-
-    const match = version.match(MINECRAFT_MINOR_VERSION_REGEX);
-    if (match) {
-        const minor = Number.parseInt(match[1], 10);
-        if (minor >= 26) {
-            return `https://minecraft.wiki/images/EDU_26.30_panorama_${face}.png`;
-        }
-        if (minor < 14) {
-            return `https://minecraft.wiki/images/Panorama_${face}_JE1.png`;
-        }
-        return `https://minecraft.wiki/images/1.${minor}_panorama_${face}.png`;
-    }
-
-    return `https://minecraft.wiki/images/1.21_panorama_${face}.png`;
-};
 
 export default function IndexPage() {
-    const version = useConfig((state) => state.version);
-    const { t } = useTranslation();
+  return (
+    <div className="h-full">
+      {/* Main Content Area */}
+      <div className="relative flex h-full flex-1 flex-col overflow-hidden rounded-xl bg-black">
+        {/* Launcher key art slideshow (15-minute fade cycle) */}
+        <WallpaperSlideshow />
 
-    const [progress, setProgress] = useState<DownloadProgress | null>(null);
-    const [isDone, setIsDone] = useState<boolean>(false);
+        {/* Gradient Overlay */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-black/15 via-black/20 to-black/80" />
 
-    useEffect(() => {
-        const unlistenPromise = listen<DownloadProgress>(
-            "download-progress",
-            (event) => {
-                const payload = event.payload;
-                setProgress(payload);
-                if (payload.global_percentage >= 100 || payload.stage === "done") {
-                    setIsDone(true);
-                    setTimeout(() => {
-                        setProgress(null);
-                        setIsDone(false);
-                    }, 500);
-                }
-            }
-        );
-        return () => {
-            unlistenPromise.then((unlisten) => unlisten());
-        };
-    }, []);
-
-    // Poll the backend every 1.5 seconds to get the latest list of running processes
-    const { data: runningProcesses = [] } = useBackend({
-        name: "get_processes",
-        refetchInterval: 1500,
-    });
-
-    const isRepairing = progress !== null && !isDone;
-    const percentage = Math.min(
-        Math.max(Number(progress?.global_percentage) || 0, 0),
-        100
-    );
-
-    return (
-        <div className="h-full select-none">
-            <div className="relative flex h-full flex-1 flex-col overflow-hidden rounded-xl bg-black">
-                {/* Animated 3D Panorama */}
-                <div className="pointer-events-none absolute inset-0 overflow-hidden">
-                    <div className="flex animate-background">
-                        {[0, 1, 2, 3].map((face) => (
-                            <img
-                                alt=""
-                                className="pointer-events-none h-screen object-cover"
-                                draggable={false}
-                                height={1080}
-                                key={face}
-                                src={getPanoramaUrl(version, face)}
-                                width={1920}
-                            />
-                        ))}
-                    </div>
-                </div>
-
-                {/* Gradient Overlay */}
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#2a2a2a]/60 to-[#111]/90" />
-
-                {/* Content */}
-                <div className="relative z-10 flex flex-1 flex-col justify-end p-8 pb-4">
-                    <div className="max-w-2xl mb-4">
-                        <h2 className="mb-4 font-black text-5xl drop-shadow-lg">
-                            {t("index.welcome")}
-                        </h2>
-                        <p className="text-gray-300 text-xl drop-shadow">
-                            {t("index.subtitle")}
-                        </p>
-                    </div>
-
-                    {/* Full-width Progress Bar */}
-                    {isRepairing && (
-                        <div className="w-full">
-                            <div className="h-3.5 w-full overflow-hidden rounded-full border border-border/60 bg-background/40 backdrop-blur-sm p-0.5 shadow-inner">
-                                <div
-                                    className="h-full rounded-full transition-all duration-300 ease-out bg-primary"
-                                    style={{ width: `${percentage}%` }}
-                                />
-                            </div>
-                            <div className="mt-1.5 flex items-center justify-between text-xs">
-                                <span className="max-w-[70%] truncate font-mono text-gray-300 drop-shadow">
-                                    {progress?.stage_name || t("stepInstalling.initializing")}
-                                    {progress && progress.total_files > 1 && (
-                                        <span className="ml-1.5 opacity-70">
-                                            ({progress.current_file}/{progress.total_files})
-                                        </span>
-                                    )}
-                                </span>
-                                <span className="font-bold text-gray-300 drop-shadow">
-                                    {percentage.toFixed(0)}%
-                                </span>
-                            </div>
-                        </div>
-                    )}
-                </div>
-                {/* Bottom Action Bar */}
-                <div className="relative z-10 flex flex-col border-[#333] border-t bg-[#232323] px-8 py-4 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
-                    <div className="flex min-h-24 flex-wrap items-center justify-between gap-4">
-                        <div className="w-full sm:w-64">
-                            <VersionSelect runningProcesses={runningProcesses} />
-                        </div>
-
-                        <div className="w-full sm:w-96">
-                            <PlayButton
-                                runningProcesses={runningProcesses}
-                                isRepairing={isRepairing}
-                                setProgress={setProgress}
-                                setIsDone={setIsDone}
-                            />
-                        </div>
-                    </div>
-                </div>
-            </div>
+        {/* Content */}
+        <div className="relative z-10 flex flex-1 flex-col justify-end p-8">
+          <div className="max-w-2xl">
+            <h2 className="mb-4 w-fit bg-transparent font-black text-5xl text-white mix-blend-difference [text-shadow:0_2px_10px_rgba(127,127,127,0.45)]">
+              Glitchy Launcher
+            </h2>
+          </div>
         </div>
-    );
+
+        {/* Bottom Action Bar */}
+        <div className="relative z-10 flex h-24 items-center justify-between border-white/[0.08] border-t bg-black/65 px-8 shadow-[0_-12px_40px_rgba(0,0,0,0.7)] backdrop-blur-xl">
+          <div className="flex w-[340px] flex-col gap-1.5">
+            <span className="font-semibold text-[11px] text-muted-foreground/70 uppercase tracking-wider">
+              Minecraft Instance
+            </span>
+            <VersionSelect />
+          </div>
+
+          <div className="w-64">
+            <PlayButton />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function VersionSelect({ runningProcesses }: { runningProcesses: string[] }) {
-    const { version, setVersion } = useConfig();
-    const { t } = useTranslation();
+function VersionSelect() {
+  const { version, setVersion } = useConfig();
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [customNameInput, setCustomNameInput] = useState("");
 
-    const { data: installedVersions, error } = useBackend({
-        initialData: [],
-        initialDataUpdatedAt: 0,
-        name: "get_installed_versions",
-    });
+  const {
+    data: instances,
+    error,
+    refetch,
+  } = useBackend({
+    initialData: [],
+    initialDataUpdatedAt: 0,
+    name: "list_instances",
+    queryKey: ["instances"],
+  });
 
-    if (error) {
-        return (
-            <Empty className="h-12 w-full flex-row justify-start gap-2 rounded-xl border border-destructive/20 bg-destructive/5 p-2">
-                <HugeiconsIcon
-                    className="pointer-events-none shrink-0 text-destructive"
-                    icon={Alert01Icon}
-                    size={20}
-                />
-                <EmptyTitle className="text-destructive text-sm">
-                    {errorText(error.code).title}
-                </EmptyTitle>
-            </Empty>
-        );
+  const updateSettings = useBackendMutation({
+    name: "update_instance_settings",
+  });
+
+  const currentInstance =
+    instances?.find((i) => i.id === version) ?? instances?.[0] ?? null;
+
+  useEffect(() => {
+    if (instances && instances.length > 0) {
+      if (!version || !instances.some((i) => i.id === version)) {
+        setVersion(instances[0].id);
+      }
+    } else if (instances && instances.length === 0 && version) {
+      setVersion("");
     }
+  }, [instances, version, setVersion]);
 
+  useEffect(() => {
+    if (currentInstance) {
+      setCustomNameInput(currentInstance.displayName);
+    }
+  }, [currentInstance?.id, currentInstance?.displayName]);
+
+  const handleSaveRename = async () => {
+    if (!currentInstance || !customNameInput.trim()) {
+      return;
+    }
+    try {
+      await updateSettings.mutateAsync({
+        displayName: customNameInput.trim(),
+        instanceId: currentInstance.id,
+        ramMaxMb: currentInstance.ramMaxMb ?? null,
+        ramMinMb: currentInstance.ramMinMb ?? null,
+      });
+      await refetch();
+      setIsRenaming(false);
+      toast.success("Instance renamed successfully");
+    } catch {
+      toast.error("Failed to rename instance");
+    }
+  };
+
+  if (error) {
     return (
-        <Combobox
-            autoHighlight
-            items={installedVersions}
-            onValueChange={(newVersion) => setVersion(newVersion)}
-            value={version}
+      <Empty className="h-12 w-full flex-row justify-start gap-2 rounded-xl border border-destructive/20 bg-destructive/5 p-2">
+        <HugeiconsIcon
+          className="text-destructive"
+          icon={Alert01Icon}
+          size={20}
+        />
+        <EmptyTitle className="text-destructive text-sm">
+          {errorText(error.code).title}
+        </EmptyTitle>
+      </Empty>
+    );
+  }
+
+  if (isRenaming && currentInstance) {
+    return (
+      <div className="flex h-12 items-center gap-1.5">
+        <Input
+          autoFocus
+          className="h-12 flex-1 rounded-lg border-primary/50 bg-white/10 px-3 text-white text-xs placeholder:text-muted-foreground/60 focus:border-primary shadow-inner"
+          onChange={(e) => setCustomNameInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              handleSaveRename();
+            } else if (e.key === "Escape") {
+              setIsRenaming(false);
+            }
+          }}
+          placeholder="Custom instance name..."
+          value={customNameInput}
+        />
+        <Button
+          className="h-12 px-3 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg shadow-sm"
+          disabled={!customNameInput.trim() || updateSettings.isPending}
+          onClick={handleSaveRename}
+          size="sm"
+          type="button"
         >
-            <ComboboxInput
-                className="h-12 w-full select-text border-[#333] bg-[#1a1a1a] text-white"
-                placeholder={t("index.selectVersion")}
-            />
-            <ComboboxContent className="border-[#333] bg-[#1a1a1a] text-white">
-                <ComboboxEmpty>{t("index.noItems")}</ComboboxEmpty>
-                <ComboboxList>
-                    {(itemVersion) => {
-                        const isRunning = runningProcesses.includes(itemVersion);
-                        return (
-                            <ComboboxItem
-                                className="hover:bg-[#333]"
-                                key={itemVersion}
-                                value={itemVersion}
-                            >
-                                <div className="flex w-full items-center justify-between">
-                                    <span>{itemVersion}</span>
-                                    {isRunning && (
-                                        <HugeiconsIcon
-                                            icon={PlayIcon}
-                                            size={16}
-                                            className="text-green-500 animate-pulse"
-                                        />
-                                    )}
-                                </div>
-                            </ComboboxItem>
-                        );
-                    }}
-                </ComboboxList>
-            </ComboboxContent>
+          <Check className="size-4" />
+        </Button>
+        <Button
+          className="h-12 px-2.5 text-xs text-muted-foreground hover:text-white rounded-lg"
+          onClick={() => setIsRenaming(false)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <X className="size-4" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1">
+        <Combobox
+          autoHighlight
+          isItemEqualToValue={(a: InstanceSummary | null, b: InstanceSummary | null) => a?.id === b?.id}
+          items={instances}
+          onValueChange={(selectedInst: InstanceSummary | null) => {
+            if (selectedInst) {
+              setVersion(selectedInst.id);
+            }
+          }}
+          value={currentInstance}
+        >
+          <ComboboxInput
+            className="h-12 w-full rounded-lg border-white/10 bg-white/5 text-white shadow-inner transition-colors placeholder:text-muted-foreground/60 hover:border-white/20 focus:border-primary/50"
+            placeholder="Select an Instance"
+            value={currentInstance?.displayName ?? ""}
+          />
+          <ComboboxContent className="rounded-lg border-white/10 bg-[#161616]/95 text-white shadow-2xl backdrop-blur-xl">
+            <ComboboxEmpty className="p-3 text-center text-muted-foreground text-xs">
+              No instances found.
+            </ComboboxEmpty>
+            <ComboboxList>
+              {(inst: InstanceSummary) => (
+                <ComboboxItem
+                  className="cursor-pointer flex items-center justify-between rounded-md px-3 py-2.5 text-xs transition-colors hover:bg-white/10"
+                  key={inst.id}
+                  value={inst}
+                >
+                  <div className="flex flex-col min-w-0 pr-2">
+                    <span className="font-semibold text-white truncate text-xs">
+                      {inst.displayName}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground/80 truncate">
+                      {inst.gameVersion} · {inst.loader.toUpperCase()}
+                    </span>
+                  </div>
+                  {inst.id === version && (
+                    <span className="shrink-0 text-[10px] font-medium text-emerald-400 bg-emerald-500/15 px-1.5 py-0.5 rounded">
+                      Active
+                    </span>
+                  )}
+                </ComboboxItem>
+              )}
+            </ComboboxList>
+          </ComboboxContent>
         </Combobox>
-    );
+      </div>
+
+      {currentInstance && (
+        <Button
+          className="h-12 w-12 shrink-0 rounded-lg border border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-white"
+          onClick={() => {
+            setCustomNameInput(currentInstance.displayName);
+            setIsRenaming(true);
+          }}
+          size="icon"
+          title="Rename instance"
+          type="button"
+          variant="ghost"
+        >
+          <Pencil className="size-4" />
+        </Button>
+      )}
+    </div>
+  );
 }
 
-interface PlayButtonProps {
-    runningProcesses: string[];
-    isRepairing: boolean;
-    setProgress: (progress: DownloadProgress | null) => void;
-    setIsDone: (isDone: boolean) => void;
+// Percent at which we consider the launch "almost there".
+const LAUNCH_NEAR_THRESHOLD = 80;
+// How long the completed bar stays visible after a successful launch.
+const LAUNCH_DONE_LINGER_MS = 3000;
+
+function LaunchProgressBar({
+  isPending,
+  justLaunched,
+  progress,
+}: {
+  isPending: boolean;
+  justLaunched: boolean;
+  progress: LaunchProgress | null;
+}) {
+  if (!(isPending || justLaunched)) {
+    return null;
+  }
+
+  let percent = 100;
+  let label = "Game launched";
+  if (isPending) {
+    percent = progress ? progress.percent : 0;
+    label = progress ? progress.phase : "Starting launch...";
+  }
+  const near = isPending && percent >= LAUNCH_NEAR_THRESHOLD;
+
+  return (
+    <div className="absolute inset-x-8 bottom-full mb-3 flex flex-col gap-1.5">
+      <div className="flex items-center justify-between font-semibold text-xs drop-shadow">
+        <span className="text-gray-300">{label}</span>
+        {near ? (
+          <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-400">
+            Almost there!
+          </span>
+        ) : (
+          <span className="text-gray-400">{percent}%</span>
+        )}
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#111]">
+        <div
+          className={cn(
+            "h-full rounded-full transition-all duration-500",
+            near || justLaunched ? "bg-emerald-500" : "bg-primary"
+          )}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+    </div>
+  );
 }
 
-function PlayButton({ runningProcesses, isRepairing, setProgress, setIsDone }: PlayButtonProps) {
-    const version = useConfig((state) => state.version);
-    const profile = useConfig((state) => state.profile);
-    const [repairMode, setRepairMode] = useState(false);
-    const { t } = useTranslation();
+function PlayButton() {
+  const version = useConfig((state) => state.version);
+  const { user, openAuthModal } = useAccountStore();
 
-    const isRunning = version ? runningProcesses.includes(version) : false;
+  // NOTE: the selected profile lives in the backend config (set via the
+  // profile menu). The old code gated on a zustand `profile` field that
+  // nothing ever wrote, which left the button permanently disabled.
+  const { data: selectedProfile } = useBackend({
+    name: "get_selected_profile",
+  });
 
-    // Play mutation
-    const { mutateAsync: playMutate } = useBackendMutation({
-        args: {
-            app,
-            selectedVersion: version ?? "",
-            repairMode: repairMode,
-            profile: profile?.uuid,
-        },
-        name: "play",
+  const { mutateAsync, isPending } = useBackendMutation({
+    name: "play",
+  });
+
+  const [progress, setProgress] = useState<LaunchProgress | null>(null);
+  const [justLaunched, setJustLaunched] = useState(false);
+
+  // The Rust `play` command emits `launch-progress` events while it
+  // prepares the game (manifest → java → args → spawn).
+  useEffect(() => {
+    const unlisten = listen<LaunchProgress>("launch-progress", (event) => {
+      setProgress(event.payload);
     });
-
-    // Kill mutation
-    const { mutateAsync: killMutate } = useBackendMutation({
-        args: {
-            selectedProcess: version ?? "",
-        },
-        name: "kill_process",
-    });
-
-    const { mutateAsync: cancelDownloadMutation } = useBackendMutation({
-        name: "cancel_download",
-    });
-
-    const handleAction = async () => {
-        if (isRepairing) {
-            await cancelDownloadMutation();
-            setProgress(null);
-            setIsDone(false);
-        } else if (isRunning) {
-            await killMutate();
-        } else {
-            await playMutate();
-        }
+    return () => {
+      unlisten.then((fn) => fn());
     };
+  }, []);
 
-    return (
-        <div className="flex w-full flex-wrap items-center gap-3">
-            <button
-                type="button"
-                disabled={isRunning || isRepairing}
-                aria-hidden={isRunning || isRepairing}
-                title={t("index.repairTooltip")}
-                onClick={() => setRepairMode((prev) => !prev)}
-                className={`flex h-14 w-14 sm:flex-none items-center justify-center rounded-xl border transition-all duration-300 ease-in-out ${
-                    isRunning || isRepairing
-                        ? "opacity-0 scale-95 pointer-events-none hidden"
-                        : "opacity-100 scale-100"
-                } ${
-                    repairMode
-                        ? "border-amber-500 bg-amber-500/10 text-amber-500"
-                        : "border-[#333] bg-[#1a1a1a] text-gray-400 hover:bg-[#333] hover:text-white"
-                }`}
-            >
-                <HugeiconsIcon icon={RepairIcon} size={24} />
-            </button>
+  // Reset the bar when a new launch starts.
+  useEffect(() => {
+    if (isPending) {
+      setProgress(null);
+      setJustLaunched(false);
+    }
+  }, [isPending]);
 
-            <ActionButton
-                action={handleAction}
-                className={`h-14 flex-1 font-bold text-2xl transition-all duration-300 ${
-                    isRepairing
-                        ? "bg-amber-500/20 text-amber-500 border border-amber-500/50 hover:bg-amber-600 hover:text-white hover:border-amber-600"
-                        : isRunning
-                            ? "bg-red-600/20 text-red-500 border border-red-500/50 hover:bg-red-600 hover:text-white hover:border-red-600"
-                            : ""
-                }`}
-                disabled={version === null || profile === null}
-                noLoadingIndicator={isRepairing}
-            >
-                {isRepairing ? t("stepInstalling.abortButton") : isRunning ? t("index.stop") : t("index.play")}
-            </ActionButton>
-        </div>
+  // Keep the completed bar visible briefly after the command resolves.
+  useEffect(() => {
+    if (!justLaunched) {
+      return;
+    }
+    const timer = setTimeout(
+      () => setJustLaunched(false),
+      LAUNCH_DONE_LINGER_MS
     );
+    return () => clearTimeout(timer);
+  }, [justLaunched]);
+
+  const noVersion = version === null;
+  const noProfile = selectedProfile !== undefined && selectedProfile === null;
+  const title = !user
+    ? "برای اجرای بازی باید وارد حساب کاربری گلیچی شوید"
+    : playButtonTitle(noVersion, noProfile);
+  const text = !user
+    ? "ورود به حساب و بازی"
+    : playButtonText(isPending, noVersion);
+
+  return (
+    <>
+      <LaunchProgressBar
+        isPending={isPending}
+        justLaunched={justLaunched}
+        progress={progress}
+      />
+
+      <ActionButton
+        action={async () => {
+          if (!user) {
+            openAuthModal(
+              "login",
+              "برای ورود به بازی و همگام‌سازی ابری، داشتن حساب کاربری گلیچی الزامی است."
+            );
+            return;
+          }
+          if (version === null) {
+            return;
+          }
+          await mutateAsync({ selectedVersion: version });
+          setJustLaunched(true);
+        }}
+        className={cn(
+          "h-14 w-full select-none rounded-lg font-black text-xl uppercase tracking-wider transition-all",
+          isPending
+            ? "bg-amber-600/90 text-white shadow-[0_4px_20px_rgba(217,119,6,0.35)]"
+            : noVersion && user
+              ? "border border-white/5 bg-secondary/70 text-muted-foreground"
+              : "bg-emerald-600 text-white shadow-[0_4px_24px_rgba(16,185,129,0.35)] hover:bg-emerald-500 hover:shadow-[0_4px_30px_rgba(16,185,129,0.55)] active:scale-[0.99]"
+        )}
+        disabled={isPending || (Boolean(user) && noVersion)}
+        title={title}
+      >
+        {text}
+      </ActionButton>
+    </>
+  );
+}
+
+function playButtonTitle(noVersion: boolean, noProfile: boolean) {
+  if (noVersion) {
+    return "Select a version first";
+  }
+  if (noProfile) {
+    return "No profile selected — click to create one";
+  }
+  return "Launch Minecraft";
+}
+
+function playButtonText(isPending: boolean, noVersion: boolean) {
+  if (isPending) {
+    return "LAUNCHING...";
+  }
+  if (noVersion) {
+    return "SELECT VERSION";
+  }
+  return "PLAY";
 }

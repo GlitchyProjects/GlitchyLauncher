@@ -2,61 +2,42 @@ pub mod commands;
 pub mod models;
 pub mod services;
 
-use crate::models::config::Config;
-use crate::models::fabric::{FabricInstaller, FabricLoader, FabricMinecraftVersion};
-use crate::models::logger::{init_log_bridge, LogLine};
-use crate::services::config::load;
-use log::{error, info};
-use models::versions::MinecraftVersion;
-use services::directory_manager::{
-    create_necessary_dirs, get_falcon_launcher_directory,
-};
-use services::version_manager::{load_installed_versions};
 use std::collections::{HashMap, VecDeque};
-use std::env;
-use std::fs::remove_dir;
-use std::process::Child;
-use std::string::ToString;
 use std::sync::{Arc, LazyLock, Mutex};
-use arc_swap::ArcSwap;
-use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
-use reqwest::Client;
+
+use log::info;
+use models::config::Config;
+use models::error::AppError;
+use models::fabric::{FabricInstaller, FabricLoader, FabricMinecraftVersion};
+use models::launch::LaunchResult;
+use models::logger::{init_log_bridge, LogLine};
+use models::mirror::mojang_mirror;
+use models::mods::ModInfo;
+use models::versions::MinecraftVersion;
+use services::config::load;
+use services::directory_manager::{create_necessary_dirs, get_falcon_launcher_directory};
+use services::download_manager::DownloadManager;
+use services::game_launcher::launch_game;
+use services::version_manager::{download_version_manifest, reload_installed_versions};
 use tauri::async_runtime::{block_on, spawn};
 use tauri::{command, AppHandle, Manager, State};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
-use tokio::sync;
-use tokio::sync::{mpsc, RwLock};
-use tokio_util::sync::CancellationToken;
-use crate::services::utils::create_reqwest_client;
+use tokio::sync::{self, mpsc, RwLock};
 
 pub struct FalconLauncher {
     pub name: String,
     pub version: String,
 }
-pub struct DownloadManager {
-    pub cancellation_token: sync::Mutex<Option<CancellationToken>>,
-}
+
 pub struct AppState {
     pub config: Arc<RwLock<Config>>,
     pub launcher_details: FalconLauncher,
     pub log_tx: mpsc::UnboundedSender<LogLine>,
     pub log_history: Arc<Mutex<VecDeque<LogLine>>>,
-    pub process_manager: ProcessManager,
-    pub client: ArcSwap<Client>,
-    pub download_manager: DownloadManager,
-}
-pub struct ProcessManager {
-    pub active_processes: Mutex<HashMap<String, Mutex<Child>>>,
+    pub downloader: Arc<DownloadManager>,
 }
 
-impl ProcessManager {
-    pub fn new() -> Self {
-        Self {
-            active_processes: Mutex::new(HashMap::new()),
-        }
-    }
-}
 pub struct Global {
     pub forge: Option<HashMap<String, Vec<String>>>,
     pub fabric_loaders: Option<Vec<FabricLoader>>,
@@ -75,22 +56,16 @@ pub static GLOBAL_CACHE: LazyLock<sync::Mutex<Global>> = LazyLock::new(|| {
     })
 });
 
-pub const DEV_MODE: bool = false;
-pub const LAUNCHER_NAME: &str = "FalconLauncher";
-pub const LAUNCHER_VERSION: &str = "BETA-0.1";
+pub const LAUNCHER_NAME: &str = "GlitchyLauncher";
+pub const LAUNCHER_VERSION: &str = "1.3.1";
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    dotenvy::dotenv().ok();
-    let mut client = DiscordIpcClient::new("1404037939305910465");
+    let _ = dotenvy::dotenv();
 
-    client.connect();
-    client.set_activity(activity::Activity::new()
-        .state("A Minecraft Launcher.")
-    );
-    remove_dir(get_falcon_launcher_directory().join("latest.log"));
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {
-            let _ = _app
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            let _ = app
                 .get_webview_window("main")
                 .expect("no main window")
                 .set_focus();
@@ -100,7 +75,8 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(
-            tauri_plugin_log::Builder::new().max_file_size(u128::MAX)
+            tauri_plugin_log::Builder::new()
+                .level(log::LevelFilter::Info)
                 .targets([
                     Target::new(TargetKind::Folder {
                         path: get_falcon_launcher_directory(),
@@ -113,31 +89,36 @@ pub fn run() {
                 .build(),
         )
         .setup(move |app| {
+            info!("Glitchy Launcher initialization starting...");
 
-            info!("Launcher's initialization has started...");
-            #[cfg(debug_assertions)]
-            {
-                let window = app.get_webview_window("main").unwrap();
-                if DEV_MODE {
-                    window.open_devtools();
-                }
-            }
+            // Log the canonical directory hierarchy at startup so path
+            // issues are immediately visible in the log file.
+            info!("=== Canonical Directory Hierarchy ===");
+            info!("  minecraft_root: {}", crate::services::directory_manager::get_minecraft_directory().display());
+            info!("  versions_dir:   {}", crate::services::directory_manager::get_versions_directory().display());
+            info!("  libraries_dir:  {}", crate::services::directory_manager::get_libraries_directory().display());
+            info!("  assets_dir:     {}", crate::services::directory_manager::get_assets_directory().display());
+            info!("  instances_dir:  {}", crate::services::directory_manager::get_instances_directory().display());
+            info!("  launcher_dir:   {}", crate::services::directory_manager::get_falcon_launcher_directory().display());
+            info!("  java_dir:       {}", crate::services::directory_manager::get_launcher_java_directory().display());
+            info!("  config_path:    {}", crate::services::directory_manager::get_config_directory().display());
+            info!("  manifest_cache: {}", crate::services::directory_manager::version_manifest_directory().display());
+            info!("=====================================");
 
-            info!("Successfully passed the debug assertions.");
             spawn(async {
                 create_necessary_dirs().await;
+                let resolved = crate::models::mirror::resolve_effective(&mojang_mirror()).await;
+                if let Err(e) = download_version_manifest(&resolved).await {
+                    info!("manifest download failed (will use cache if present): {e:?}");
+                }
             });
-            info!("Created required necessary directories.");
+
             let app_handle = app.handle().clone();
             let shared_history = Arc::new(Mutex::new(VecDeque::with_capacity(10000)));
-
             let bridge_history = shared_history.clone();
             let log_tx = init_log_bridge(app_handle, bridge_history);
-            let cfg = load();
-            let client = create_reqwest_client(&cfg).unwrap_or_else(|x| {
-                error!("failed to create a normal client. attempting to create a default client: {}",x);
-                return Client::new();
-            });
+
+            let downloader = Arc::new(DownloadManager::new(8));
             app.manage(AppState {
                 config: Arc::new(RwLock::new(load())),
                 launcher_details: FalconLauncher {
@@ -146,37 +127,33 @@ pub fn run() {
                 },
                 log_tx,
                 log_history: shared_history,
-                process_manager: ProcessManager::new(),
-                client: ArcSwap::new(Arc::new(client)),
-                download_manager: DownloadManager {
-                    cancellation_token: sync::Mutex::new(None),
-                },
+                downloader,
             });
+
             block_on(async {
-                load_installed_versions().await;
+                reload_installed_versions().await;
             });
-            info!("Reloaded installed versions.");
+            info!("Installed versions reloaded.");
 
             let window = app.handle().get_window("main").unwrap();
-
+            fit_window_to_work_area(&window);
             window.center().expect("Failed to center the window");
-            window.set_focus().expect("Failed to set window on focus");
+            window.set_focus().expect("Failed to set window focus");
+
             #[cfg(any(windows, target_os = "linux"))]
             {
-                use tauri_plugin_deep_link::DeepLinkExt;
-                app.deep_link().register("falconLauncher")?;
+                app.deep_link().register("glitchyLauncher")?;
                 app.deep_link().register_all()?;
             }
             app.deep_link().on_open_url(|event| {
                 info!("deep link URLs: {:?}", event.urls());
             });
-            info!("Program window's properties was modified successfully .");
 
-            return Ok(());
-
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::game_launcher::play,
+            play,
+            commands::downloader::get_versions,
             commands::settings::get_maximum_ram_usage,
             commands::settings::get_minimum_ram_usage,
             commands::settings::set_maximum_ram_usage,
@@ -185,35 +162,54 @@ pub fn run() {
             commands::settings::get_language,
             commands::settings::set_exit_on_launch,
             commands::settings::should_exit_on_launch,
-            commands::settings::set_use_dedicated_gpu,
-            commands::settings::should_use_dedicated_gpu,
             commands::settings::save,
             commands::settings::set_config,
+            commands::settings::get_selected_profile,
+            commands::settings::set_selected_profile,
             commands::settings::get_total_ram,
-            commands::settings::get_proxy,
-            commands::settings::set_proxy,
-            commands::settings::get_auto_detected_java_versions,
-            commands::settings::get_java,
-            commands::settings::set_java,
-            commands::settings::get_openal,
-            commands::settings::set_openal,
-            commands::settings::get_glfw,
-            commands::settings::set_glfw,
-            commands::mods::toggle_mod,
-            commands::mods::delete_mod,
-            commands::mods::get_mods,
-            commands::mods::import_mod_from_local,
-            commands::mods::open_mods_folder,
-            commands::downloader::get_versions,
-            commands::downloader::reload_version_manifest,
+            commands::mods::toggle_backpack_item,
+            commands::mods::delete_backpack_item,
+            commands::mods::get_backpack_items,
+            commands::mods::get_instance_info,
+            commands::mods::import_backpack_item,
+            commands::mods::open_backpack_folder,
+            commands::modrinth::modrinth_search,
+            commands::modrinth::modrinth_get_project_versions,
+            commands::modrinth::modrinth_download_item,
+            commands::modpacks::search_modpacks,
+            commands::modpacks::get_modpack_versions,
+            commands::modpacks::install_modpack,
+            commands::modpacks::import_modpack,
+            commands::instances::list_instances,
+            commands::instances::update_instance_settings,
+            commands::instances::set_instance_path,
+            commands::instances::reset_instance_path,
+            commands::instances::clone_instance,
+            commands::instances::delete_instance,
+            commands::instances::reinstall_instance,
+            commands::instances::list_instance_worlds,
+            commands::instances::delete_instance_world,
+            commands::instances::create_instance_backup,
+            commands::instances::list_instance_backups,
+            commands::instances::restore_instance_backup,
+            commands::instances::delete_instance_backup,
+            commands::instances::open_instance_folder,
             commands::downloader::download_version,
-            commands::downloader::cancel_download,
             commands::downloader::get_installed_versions,
+            commands::downloader::get_non_installed_versions,
             commands::downloader::get_forge_versions,
             commands::downloader::get_fabric_versions,
+            commands::downloader::get_optifine_versions,
             commands::downloader::get_vanilla_versions,
+            commands::downloader::repair_version,
+            commands::downloader::get_active_downloads,
+            commands::downloader::pause_download,
+            commands::downloader::resume_download,
+            commands::downloader::cancel_download,
+            commands::downloader::clear_finished_downloads,
             commands::profiles::get_profiles,
             commands::profiles::create_offline_profile,
+            commands::profiles::rename_profile,
             commands::profiles::remove_profile,
             commands::logger::get_log_history,
             commands::logger::clear_log_history_channel,
@@ -223,23 +219,87 @@ pub fn run() {
             commands::mirrors::set_mirror,
             commands::mirrors::get_mirror,
             commands::mirrors::import_mirror,
-            commands::process_manager::get_processes,
-            commands::process_manager::kill_process,
-            commands::modrinth_helper::search_for_modrinth_project,
-            commands::modrinth_helper::get_modrinth_projects,
-            commands::modrinth_helper::list_modrinth_mod_versions,
-            commands::modrinth_helper::get_modrinth_mod_dependencies,
-            commands::modrinth_helper::get_modrinth_mod_version_by_id,
-            commands::modrinth_helper::download_modrinth_mod_version,
-            error
+            commands::java::list_detected_javas,
+            commands::java::get_selected_java,
+            commands::java::set_selected_java,
+            commands::glitchy::glitchy_get_achievements,
+            commands::glitchy::glitchy_get_badges,
+            commands::glitchy::glitchy_set_displayed_badges,
+            commands::glitchy::glitchy_get_profile,
+            commands::glitchy::glitchy_save_customization,
+            commands::glitchy::glitchy_upload_avatar,
+            commands::glitchy::glitchy_avatar_path,
+            commands::glitchy::glitchy_avatar_data,
+            commands::glitchy::glitchy_get_allowed_accents,
+            commands::glitchy::glitchy_get_journey,
+            commands::glitchy::glitchy_get_statistics,
+            commands::glitchy::glitchy_get_recent_activity,
+            commands::glitchy::glitchy_is_maximized,
+            commands::glitchy::glitchy_toggle_maximized,
+            commands::glitchy::glitchy_set_active_skin,
+            commands::glitchy::glitchy_get_active_skin,
+            commands::ai::ai_chat,
+            commands::ai::ai_diagnose_log,
+            commands::ai::ai_apply_autofix,
+            commands::ai::get_system_diagnostics,
+            commands::ai::get_ai_usage_status,
+            commands::updater::check_launcher_update,
+            commands::updater::apply_launcher_update,
+            commands::account::glitchy_account_register,
+            commands::account::glitchy_account_login,
+            commands::account::glitchy_account_logout,
+            commands::account::glitchy_account_get_current,
+            commands::account::glitchy_account_upload_skin,
+            commands::account::glitchy_account_sync_save,
+            commands::account::glitchy_account_sync_load,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-    client.close();
 }
 
+/// Clamp the main window so it never exceeds the primary monitor's work
+/// area. On 1080p displays running 125–150% DPI scaling, the logical
+/// 1280×800 default is physically larger than the screen — cap it to
+/// 92% of the work area (in physical pixels) and lower the minimum size
+/// to match.
+fn fit_window_to_work_area(window: &tauri::Window) {
+    let Ok(Some(monitor)) = window.primary_monitor() else {
+        return;
+    };
+    let scale = monitor.scale_factor();
+    let area = monitor.work_area();
+    let max_w = (area.size.width as f64 * 0.92).floor();
+    let max_h = (area.size.height as f64 * 0.92).floor();
+    let want_w = (1280.0 * scale).min(max_w);
+    let want_h = (800.0 * scale).min(max_h);
+    let _ = window.set_min_size(Some(tauri::PhysicalSize::new(
+        (500.0 * scale).floor().min(max_w) as u32,
+        (560.0 * scale).floor().min(max_h) as u32,
+    )));
+    let _ = window.set_size(tauri::PhysicalSize::new(
+        want_w.round() as u32,
+        want_h.round() as u32,
+    ));
+}
 
+/// Launch the game. Returns a structured [`LaunchResult`] on success
+/// (PID, version, username, start time) so the frontend can render a
+/// "game is running" indicator. On failure returns a typed [`AppError`]
+/// the UI can map to a user message + recovery action.
 #[command]
-async fn error(message: String){
-    error!("{}", message);
+async fn play(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    selected_version: String,
+    direct_connect: Option<crate::services::game_launcher::DirectConnectTarget>,
+) -> Result<LaunchResult, AppError> {
+    let _ = &state; // AppState is also held by the launcher internally.
+    let versions = {
+        let global = GLOBAL_CACHE.lock().await;
+        global.versions.clone()
+    };
+    let result =
+        launch_game(app.clone(), selected_version.clone(), &versions, direct_connect).await?;
+    commands::glitchy::on_play_session(&app, &selected_version);
+    Ok(result)
 }

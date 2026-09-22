@@ -1,45 +1,47 @@
 use log::info;
 use tauri::{command, State};
-use crate::AppState;
-use crate::models::error::AppError;
-use crate::models::logger::LogLine;
 
+use crate::models::error::{AppError, Void};
+use crate::models::logger::LogLine;
+use crate::AppState;
+
+/// Return the full in-memory log history (bounded by the bridge's
+/// capacity — currently 10000 lines).
 #[command]
 pub async fn get_log_history(state: State<'_, AppState>) -> Result<Vec<LogLine>, AppError> {
-    if let Ok(guard) = state.log_history.lock() {
-        return Ok(guard.iter().cloned().collect());
-    }
-    Err(AppError::LogHistoryNotFound)
+    let guard = state
+        .log_history
+        .lock()
+        .map_err(|_| AppError::LogHistoryNotFound)?;
+    Ok(guard.iter().cloned().collect())
 }
 
+/// Clear the entire log history. Always succeeds.
 #[command]
-pub async fn clear_log_history(state: State<'_, AppState>) -> Result<(), AppError>{
+pub async fn clear_log_history(state: State<'_, AppState>) -> Void {
     if let Ok(mut guard) = state.log_history.lock() {
         guard.clear();
     }
-    Err(AppError::LogHistoryNotFound)
+    Ok(())
 }
 
+/// Clear only the log lines tagged with a specific channel (e.g.
+/// `launcher`, `minecraft`, `download`). Always succeeds.
 #[command]
-pub async fn clear_log_history_channel(state: State<'_, AppState>, channel: String) -> Result<(), AppError>{
+pub async fn clear_log_history_channel(
+    state: State<'_, AppState>,
+    channel: String,
+) -> Void {
     if let Ok(mut guard) = state.log_history.lock() {
-        let l = guard.len();
-        let mut i = 0;
-        while i != guard.len() {
-            if guard[i].channel == channel {
-                guard.remove(i);
-            } else {
-                i  += 1;
-            }
-        }
+        guard.retain(|line| line.channel != channel);
     }
-    //
-    Err(AppError::BufferReadFailed("Failed to read log history buffer".to_string()))
+    Ok(())
 }
 
-/// LINUX Debugger for the js side. use the developer console if you are on Windows build to check logs
+/// Frontend debugging hook — writes a line to the launcher's log file
+/// via the standard `log` crate. Kept for parity with the existing UI.
 #[command]
-pub async fn debug(text: String) -> Result<(), AppError> {
-    info!("{}", text);
+pub async fn debug(text: String) -> Void {
+    info!("[frontend] {}", text);
     Ok(())
 }

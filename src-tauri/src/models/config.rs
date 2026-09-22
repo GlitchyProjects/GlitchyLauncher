@@ -4,82 +4,63 @@ use crate::services::directory_manager::get_config_directory;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use uuid::Uuid;
-use crate::models::config::Bool::FALSE;
 use crate::services::utils;
-use serde_with::with_prefix;
 
-with_prefix!(prefix_java "java_");
-with_prefix!(prefix_openal "openal_");
-with_prefix!(prefix_glfw "glfw_");
-const NATIVE_CUSTOM: &str = "custom";
-const NATIVE_VERSION_ASSOCIATED: &str = "version_associated";
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct NativeChoice {
-    pub mode: String, /// "version_associated" | "custom"
-    #[serde(default)]
-    pub path: String,
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeLibraries {
+    pub use_custom_glfw: bool,
+    pub glfw_path: String,
+    pub use_custom_openal: bool,
+    pub openal_path: String,
 }
 
-impl NativeChoice {
-    pub fn is_custom(&self) -> bool {
-        self.mode == NATIVE_CUSTOM
-    }
-
-    pub fn is_version_associated(&self) -> bool {
-        self.mode == NATIVE_VERSION_ASSOCIATED
-    }
-}
-impl Default for NativeChoice {
-    fn default() -> Self {
-        Self {
-            mode: "version_associated".to_string(),
-            path: String::new(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct NativeBinaries {
-    #[serde(flatten, with="prefix_glfw")]
-    pub glfw: NativeChoice,
-    #[serde(flatten, with="prefix_openal")]
-    pub openal: NativeChoice,
-    #[serde(flatten, with="prefix_java")]
-    pub java: NativeChoice,
-}
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct LaunchOptions {
+    pub selected_profile: Uuid,
     pub ram_usage_min: u64,
     pub ram_usage_max: u64,
-    pub use_dedicated_gpu: Bool,
-
+    pub use_dedicated_gpu: bool,
+    /// When set, the launcher uses this Java path instead of the
+    /// manifest-recommended runtime. `None` means "automatic".
+    #[serde(default)]
+    pub java_override: Option<String>,
 }
 impl Default for LaunchOptions {
     fn default() -> Self {
         Self {
+            selected_profile: utils::uuid_from_username("Player"),
             ram_usage_min: 1024,
             ram_usage_max: 2048,
-            use_dedicated_gpu: Bool::TRUE,
+            use_dedicated_gpu: true,
+            java_override: None,
         }
     }
 }
-#[derive(Debug, Serialize, Deserialize)]
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct LauncherSettings {
     pub language: String,
-    pub exit_on_launch: Bool,
+    pub exit_on_launch: bool,
 }
 
 impl Default for LauncherSettings {
     fn default() -> Self {
         Self {
             language: "en".to_string(),
-            exit_on_launch: Bool::FALSE,
+            exit_on_launch: false,
         }
     }
 }
+
+/// Mirror is serialized as its name string inside the config file. This
+/// avoids embedding the full mirror maps (which can be large) into the
+/// config and lets us look up the live mirror definition at runtime.
 mod mirror_serialization {
     use super::*;
-    use serde::{de, Deserializer, Serializer};
+    use serde::{Deserializer, Serializer};
     use crate::models::mirror::mirror_from;
 
     pub fn serialize<S>(mirror: &Mirror, serializer: S) -> Result<S::Ok, S::Error>
@@ -97,56 +78,39 @@ mod mirror_serialization {
         Ok(mirror_from(&name))
     }
 }
-#[derive(Debug, Serialize, Deserialize, Default)]
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct DownloadSettings {
     #[serde(with = "mirror_serialization")]
     pub mirror: Mirror,
-    pub proxy: String,
 }
 
-
-#[derive(Debug, Deserialize, Serialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
+    #[serde(default)]
     pub launch_options: LaunchOptions,
+    #[serde(default)]
     pub launcher_settings: LauncherSettings,
+    #[serde(default)]
     pub download_settings: DownloadSettings,
-    pub native_libraries: NativeBinaries
+    #[serde(default)]
+    pub native_libraries: NativeLibraries,
 }
 
-#[derive(Debug, Deserialize, Serialize, Default)]
-pub enum Bool {
-    TRUE,
-    #[default]
-    FALSE,
-}
-impl From<Bool> for bool {
-    fn from(value: Bool) -> bool {
-        match value {
-            Bool::TRUE => true,
-            Bool::FALSE => false,
-        }
-    }
-}
-impl Bool {
-    pub fn new(toggle: bool) -> Bool {
-        if toggle {
-            Bool::TRUE
-        } else {
-            Bool::FALSE
-        }
-    }
-
-    pub fn boolean(&self) -> bool {
-        match self {
-            Bool::TRUE => true,
-            Bool::FALSE => false,
-        }
-    }
-}
 impl Config {
+    /// Persist the config to disk as JSON. Atomic write via tmp+rename.
     pub fn write_to_file(&self) -> Result<(), AppError> {
-        let text = serde_ini::to_string(self).map_err(|x| AppError::IniParseFailed(x.to_string()))?;
-        fs::write(get_config_directory(), text).map_err(|x| AppError::FileReadFailed(x.to_string()))
+        let path = get_config_directory();
+        let json = serde_json::to_string_pretty(self)
+            .map_err(|e| AppError::JsonParseFailed(format!("config serialize: {e}")))?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|e| AppError::DirCreateFailed(e.to_string()))?;
+        }
+        let tmp = path.with_extension("json.tmp");
+        fs::write(&tmp, &json).map_err(|e| AppError::FileWriteFailed(e.to_string()))?;
+        fs::rename(&tmp, &path).map_err(|e| AppError::FileRenameFailed(e.to_string()))?;
+        Ok(())
     }
 }

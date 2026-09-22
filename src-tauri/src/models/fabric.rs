@@ -15,7 +15,7 @@ pub struct FabricMinecraftVersion {
     pub stable: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FabricInstaller {
     pub url: String,
     pub maven: String,

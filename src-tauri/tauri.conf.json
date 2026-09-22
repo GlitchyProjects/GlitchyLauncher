@@ -1,8 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "FalconLauncher",
-  "version": "0.0.1",
-  "identifier": "ir.intelligentfalcon.falconlauncher",
+  "productName": "Glitchy Launcher",
+  "version": "1.3.1",
+  "identifier": "ir.glitchy.launcher",
+  "mainBinaryName": "Glitchy Launcher",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -13,10 +14,16 @@
     "windows": [
       {
         "decorations": false,
-        "title": "Falcon Launcher",
+        "devtools": false,
+        "title": "Glitchy Launcher",
         "minWidth": 500,
-        "minHeight": 800,
-        "transparent": true
+        "minHeight": 560,
+        "transparent": false,
+        "backgroundColor": "#0a0e1a",
+        "fullscreen": false,
+        "center": true,
+        "width": 1280,
+        "height": 800
       }
     ],
     "security": {
@@ -28,13 +35,19 @@
           "permissions": [
             "core:window:default",
             "core:window:allow-close",
+            "core:window:allow-destroy",
             "core:window:allow-minimize",
             "core:window:allow-toggle-maximize",
             "core:window:allow-start-dragging",
-            "dialog:default",
+            "core:window:allow-set-fullscreen",
+            "core:window:allow-is-fullscreen",
             "core:event:allow-listen",
             "core:event:default",
-            "notification:default"
+            "dialog:default",
+            "notification:default",
+            "core:resources:default",
+            "opener:default",
+            "opener:allow-open-path"
           ]
         }
       ]
@@ -43,19 +56,34 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["falconLauncher"]
+        "schemes": ["glitchyLauncher"]
       }
     }
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "copyright": "Copyright © 2026 Glitchy Team. All rights reserved.",
+    "publisher": "Glitchy Team",
+    "shortDescription": "Glitchy Minecraft Launcher",
+    "longDescription": "Glitchy Launcher - A modern, fast Minecraft launcher",
+    "targets": ["nsis", "deb", "appimage"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "icons/installer-header.bmp",
+        "sidebarImage": "icons/installer-sidebar.bmp"
+      }
+    }
   }
 }
