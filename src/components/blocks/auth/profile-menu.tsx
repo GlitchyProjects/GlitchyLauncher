@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { LogOut, Sparkles, User, Shield, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAccountStore } from '@/stores/account';
@@ -13,10 +13,14 @@ export function GlitchyProfileMenu() {
       <Button
         type='button'
         onClick={() => openAuthModal('login')}
-        className='h-8 px-3 rounded-lg bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600/30 text-xs font-bold transition-all flex items-center gap-1.5'
+        className='w-full h-10 px-3 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600/30 text-xs font-bold transition-all flex items-center justify-between group-data-[state=collapsed]:justify-center group-data-[state=collapsed]:px-0 shadow-lg shadow-emerald-950/20'
+        title="Glitchy Account"
       >
-        <User className='size-3.5' />
-        <span>ورود / ثبت‌نام</span>
+        <div className='flex items-center gap-2'>
+          <Shield className='size-4 text-emerald-400 shrink-0' />
+          <span className='group-data-[state=collapsed]:hidden tracking-wide text-xs'>Glitchy Account</span>
+        </div>
+        <Sparkles className='size-3.5 text-emerald-400/80 group-data-[state=collapsed]:hidden' />
       </Button>
     );
   }
@@ -28,17 +32,22 @@ export function GlitchyProfileMenu() {
   };
 
   return (
-    <div className='relative'>
+    <div className='relative w-full'>
       <button
         type='button'
         onClick={() => setMenuOpen(!menuOpen)}
-        className='h-8 px-2.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white text-xs font-semibold flex items-center gap-2 transition-all'
+        className='w-full h-10 px-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white text-xs font-semibold flex items-center justify-between transition-all group-data-[state=collapsed]:justify-center group-data-[state=collapsed]:px-0'
       >
-        <div className='size-5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-[10px] font-bold uppercase'>
-          {user.username.slice(0, 1)}
+        <div className='flex items-center gap-2 min-w-0'>
+          <div className='size-7 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-xs font-bold uppercase shrink-0'>
+            {user.username.slice(0, 2)}
+          </div>
+          <div className='flex flex-col text-start min-w-0 group-data-[state=collapsed]:hidden'>
+            <span className='truncate text-xs font-bold text-white leading-tight'>{user.username}</span>
+            <span className='text-[10px] text-emerald-400 font-medium leading-tight'>{user.badge || 'Glitchy Account'}</span>
+          </div>
         </div>
-        <span className='max-w-[100px] truncate text-xs font-medium'>{user.username}</span>
-        <ChevronDown className='size-3 text-muted-foreground' />
+        <ChevronDown className='size-3.5 text-muted-foreground group-data-[state=collapsed]:hidden' />
       </button>
 
       {menuOpen && (
@@ -48,7 +57,7 @@ export function GlitchyProfileMenu() {
             onClick={() => setMenuOpen(false)}
           />
           <div
-            className='absolute right-0 top-full mt-2 w-56 z-50 rounded-xl border border-white/10 bg-[#16161b] p-3 shadow-2xl backdrop-blur-xl'
+            className='absolute bottom-full mb-2 right-0 left-0 min-w-56 z-50 rounded-xl border border-white/10 bg-[#16161b] p-3 shadow-2xl backdrop-blur-xl'
             dir='rtl'
           >
             <div className='flex items-center gap-2.5 pb-3 border-b border-white/10'>

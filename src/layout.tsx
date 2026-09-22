@@ -9,7 +9,6 @@ import { DownloadsListener } from "./components/blocks/downloads/downloads-liste
 import { GlitchyUpdateListener } from "./components/glitchy/update-listener";
 import { StartupUpdater } from "./components/blocks/updater/startup-updater";
 import { AuthModal } from "./components/blocks/auth/auth-modal";
-import { GlitchyProfileMenu } from "./components/blocks/auth/profile-menu";
 import { useAccountStore } from "./stores/account";
 import { ThemeProvider } from "./components/theme-provider";
 import { SidebarProvider } from "./components/ui/sidebar";
@@ -109,9 +108,6 @@ function InnerLayout() {
             className="flex h-9 shrink-0 select-none items-center justify-between px-2"
             data-tauri-drag-region
           >
-            <div className="flex items-center gap-2 z-10" data-tauri-drag-region="false">
-              <GlitchyProfileMenu />
-            </div>
             <div className="h-full flex-1" data-tauri-drag-region />
             <div className="flex h-full select-none items-stretch" dir="ltr">
               <button

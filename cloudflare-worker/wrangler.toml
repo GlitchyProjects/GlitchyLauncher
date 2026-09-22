@@ -1,7 +1,7 @@
 name = "glitchy-api"
 main = "src/index.ts"
 compatibility_date = "2024-09-01"
-# account_id = "YOUR_CLOUDFLARE_ACCOUNT_ID"
+account_id = "7a17f473129a9a71fa4f35ee04e06bbc"
 
 [vars]
 ENVIRONMENT = "production"

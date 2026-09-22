@@ -361,10 +361,10 @@ function PlayButton() {
   const noVersion = version === null;
   const noProfile = selectedProfile !== undefined && selectedProfile === null;
   const title = !user
-    ? "برای اجرای بازی باید وارد حساب کاربری گلیچی شوید"
+    ? "Login and Play with your Glitchy Account"
     : playButtonTitle(noVersion, noProfile);
   const text = !user
-    ? "ورود به حساب و بازی"
+    ? "Login and Play"
     : playButtonText(isPending, noVersion);
 
   return (

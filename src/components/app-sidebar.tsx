@@ -2,6 +2,7 @@ import type * as React from "react";
 
 import { NavMenu } from "@/components/nav-menu";
 import { NavProfile } from "@/components/nav-profile";
+import { GlitchyProfileMenu } from "@/components/blocks/auth/profile-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -30,7 +31,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <NavMenu />
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="gap-2 p-2">
+        <GlitchyProfileMenu />
         <NavProfile />
       </SidebarFooter>
       <SidebarRail />
