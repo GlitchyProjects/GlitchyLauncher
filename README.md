@@ -1,24 +1,125 @@
-[![Telegram](https://img.shields.io/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/intelligentfalcon)
-# فالکن لانچر
+﻿<div align="center">
 
-یک لانچر فارسی زبان برای کاربران ایرانی بازی ماینکرفت.
+# 🚀 Glitchy Launcher | لانچر ماینکرفت گلیچی
+**نسل نوین لانچر ماینکرفت: سریع، هوشمند، ابری و کاملاً بهینه‌سازی‌شده**
 
-و همچنان در دست توسعه...
+[![Release](https://img.shields.io/badge/Release-v1.3.1-10b981?style=for-the-badge&logo=github)](https://github.com/GlitchyProjects/GlitchyLauncher/releases)
+[![Tauri](https://img.shields.io/badge/Tauri-v2-24c8db?style=for-the-badge&logo=tauri)](https://tauri.app)
+[![React](https://img.shields.io/badge/React-19-61dafb?style=for-the-badge&logo=react)](https://react.dev)
+[![Cloudflare](https://img.shields.io/badge/Cloudflare-Workers_%26_D1-f38020?style=for-the-badge&logo=cloudflare)](https://workers.cloudflare.com)
+[![Modrinth](https://img.shields.io/badge/Modrinth-Integrated-00af5c?style=for-the-badge&logo=modrinth)](https://modrinth.com)
+[![License](https://img.shields.io/badge/License-GPL--3.0-blue?style=for-the-badge)](LICENSE)
 
+</div>
 
-Note: This project is not affiliated with Mojang or Microsoft. Minecraft is a trademark of Mojang Synergies AB.
+---
 
-لینک حمایت مالی:
-https://daramet.com/IFalcon
-### ویژگی ها
-* بروزرسانی ورژن و دانلود
-* پشتیبانی از فورج و فابریک
-* پشتیبانی از اکانت های افلاین فعلا (غیر پرمیوم)
-* دانلود خودکار جاوای لازم هر ورژن
-* پشتیبانی از زبان فارسی و انگلیسی
+> [!NOTE]
+> ### ℹ️ پایه و اساس پروژه (Foundation & Attribution)
+> این پروژه با افتخار **بر پایه سورس‌کد پروژه ارزشمند [Falcon Launcher](https://github.com/IntelligentFalcon/falconlauncher)** توسعه یافته است و با معماری نوین ابری، سیستم حساب کاربری اختصاصی، دستیار هوش مصنوعی عیب‌یاب و بازطراحی مدرن رابط کاربری به **Glitchy Launcher** تکامل یافته است.
+> با سپاس فراوان از زحمات توسعه‌دهندگان اولیه فالکن لانچر:
+> **`Mmd4J`** • **`MrRsd01`** • **`Maploop`** • **`Gnkalk`**
 
-### Credits
-* Mmd4J
-* MrRsd01
-* Maploop
-* Gnkalk
+---
+
+## 🌟 درباره لانچر گلیچی (About Glitchy Launcher)
+**Glitchy Launcher** یک لانچر مدرن، متن‌باز و سبک برای ماینکرفت است که با بهره‌گیری از تکنولوژی پرسرعت **Tauri v2 (Rust)** و **React 19** طراحی شده است. این لانچر با هدف ارائه یک تجربه کاربری بی‌نقص، بدون قطعی، بدون نیاز به ابزارهای جانبی و با پشتیبانی کامل از زبان‌های **فارسی (راست‌چین استاندارد با تایپوگرافی وزیرمتن)** و **انگلیسی** توسعه می‌یابد.
+
+---
+
+## ✨ ویژگی‌های برجسته لانچر گلیچی (Key Features)
+
+### 🛡️ ۱. سیستم حساب کاربری ابری GlitchyAccount
+* **معماری سرورلس ابری (Cloudflare Workers + D1 Database):** پایداری بالا و پاسخ‌دهی در کسر ثانیه.
+* **سیستم ضدفیک و امنیت ایمیل (Anti-Disposable Email):** مسدودسازی خودکار سرویس‌های ارائه‌دهنده ایمیل موقت و فیک (نظیر 10MinuteMail، TempMail، Mailinator و...).
+* **رمزنگاری قدرتمند:** هش‌سازی ایمن رمز عبور با استاندارد صنعتی `PBKDF2-SHA256` با سالت رندوم ۱۶ بایتی در ۱۰۰٬۰۰۰ دور تکرار.
+* **معماری اولویت با آفلاین (Offline-First):** نشست‌های کاربری به صورت امن در رایانه کش می‌شوند؛ در صورت قطعی اینترنت، بازی بدون هیچ مانعی به صورت آفلاین اجرا می‌شود.
+* **سینک بلادرنگ با پروفایل بازی:** اتصال آنی نام کاربری و اسکین اکانت به بازی ماینکرفت.
+
+### 🤖 ۲. دستیار هوش مصنوعی و رفع خودکار کرش (AI Assistant & 1-Click Fix)
+* **عیب‌یابی هوشمند لاگ‌ها:** خواندن خودکار لاگ‌های بازی و کرش‌ریپورت‌ها جهت تشخیص دقیق دلیل بسته شدن بازی (کمبود رم، تداخل مادها، نسخه ناسازگار جاوا و...).
+* **دکمه جادویی رفع خطا (1-Click Auto-Fix):** اصلاح خودکار تنظیمات معیوب، ریست کانفیگ‌های خراب و حذف مادهای ناسازگار تنها با یک کلیک.
+* **چت تخصصی ماینکرفت:** گفتگوی مستقیم با هوش مصنوعی برای راهنمایی نصب بهترین مادهای بهینه‌ساز فریم‌ریت (FPS)، شیدرهای گرافیکی و تنظیمات مناسب سیستم.
+
+### 🧩 ۳. یکپارچگی انحصاری با Modrinth (فروشگاه و کوله‌پشتی ماد)
+* **نصب ۱-کلیکه بدون دردسر:** جستجو، فیلتر و نصب مستقیم صدها هزار ماد، مادپک، ریسورس‌پک و شیدر از مخزن امن و مدرن Modrinth.
+* **فیلترینگ هوشمند نسخه‌ها:** جلوگیری خودکار از دانلود مادهای ناپایدار، آلفا یا ناسازگار با لودر انتخابی.
+* **کوله‌پشتی اختصاصی (Backpack):** مدیریت مجزای افزونه‌ها، مادها و شیدرها برای هر نسخه یا اینستنس به صورت مستقل.
+
+### 📦 ۴. مدیریت پیشرفته اینستنس‌ها و نام‌گذاری دلخواه (Instance Manager)
+* **پشتیبانی کامل از لودرها:** نصب مستقل نسخه‌های **Vanilla**, **Fabric**, **Forge**, **NeoForge** و **OptiFine**.
+* **امکان تعیین نام دلخواه:** کاربران می‌توانند نام نمایشی هر نسخه را به دلخواه خود تغییر دهند، بدون اینکه تداخلی در ساختار هسته بازی ایجاد شود.
+* **محیط کاملاً ایزوله:** هر اینستنس دارای پوشه ماد، ریسورس‌پک، جهان‌ها (Saves) و اسکرین‌شات‌های کاملاً تفکیک‌شده است.
+
+### 🎨 ۵. استودیو سه‌بعدی اسکین و شنل (3D Skin Studio)
+* **رندر ۳۶۰ درجه تعاملی:** نمایش زنده و چرخان اسکین و شنل با موتور سه‌بعدی `skinview3d`.
+* **پشتیبانی از انواع مدل‌ها:** تغییر آسان بین مدل‌های کلاسیک (Classic 4px) و باریک (Slim 3px).
+* **آپلود مستقیم:** انتخاب و تغییر آنی اسکین بدون نیاز به لانچرهای جانبی.
+
+### ⚡ ۶. موتور دانلود موازی و پرسرعت (Multi-Threaded Downloader)
+* **دانلود چندبخشی و هوشمند:** افزایش سرعت دریافت فایل‌های بازی با استفاده از چندین اتصال همزمان.
+* **میرورهای پرسرعت (Mirrors):** قابلیت انتخاب میان سرورهای رسمی Mojang و میرورهای پرسرعت آسیایی و جهانی (BMCLAPI, MCBBS).
+* **تعمیر خودکار (Repair):** بررسی چک‌سام و هش SHA-1 تمامی فایل‌ها و دانلود مجدد خودکار فایل‌های ناقص یا خراب‌شده.
+
+### 🔄 ۷. سیستم به‌روزرسانی خودکار و بی‌صدا (Silent Auto-Updater)
+* **بررسی پیش از ورود:** سنجش نسخه لانچر در پس‌زمینه در هنگام باز شدن برنامه.
+* **Silent-Ignore در حالت آفلاین:** در صورت عدم دسترسی به اینترنت یا قطع بودن شبکه، سیستم با نادیده‌گیری بی‌صدا وارد لانچر شده و هیچ خطای مزاحمی به کاربر نمایش نمی‌دهد.
+* **آپدیت خودکار:** در صورت وجود نسخه جدیدتر، فایل به‌روزرسانی دانلود و به طور خودکار اجرا می‌شود.
+
+### 🎮 ۸. گیمیفیکیشن و شخصی‌سازی نئونی
+* **آمار زمان بازی:** نمایش دقیق ساعات تجربه بازی و تعداد نشست‌های اجرا شده.
+* **خط سیر و نشان‌های افتخار (Badges & Journey):** دریافت مدال‌ها و دستاوردهای اختصاصی لانچر.
+* **کستومایز پروفایل:** شخصی‌سازی فریم‌های آواتار، هاله‌های نورانی نئونی و بنرهای پس‌زمینه.
+
+---
+
+## 🛠️ معماری فنی (Tech Stack)
+
+| لایه | فناوری‌های اصلی |
+| :--- | :--- |
+| **هسته لانچر (Backend)** | Rust, Tauri v2, Tokio, Reqwest, Serde |
+| **رابط کاربری (Frontend)** | React 19, TypeScript, Vite, Tailwind CSS, Base UI, Lucide Icons |
+| **سرورلس و ابری (Cloud)** | Cloudflare Workers, Cloudflare D1 Database (SQLite at Edge), Web Crypto |
+| **موتور سه‌بعدی (3D)** | Three.js, Skinview3d |
+| **ارتباطات و سوکت** | Cloudflare Edge APIs, GitHub REST API, Mojang Piston API |
+
+---
+
+## 🚀 راهنمای بیلد و راه‌اندازی (Build & Development)
+
+### پیش‌نیازها:
+- [Node.js](https://nodejs.org) (نسخه 20 یا بالاتر)
+- [pnpm](https://pnpm.io) (نسخه 9 یا بالاتر)
+- [Rust & Cargo](https://rustup.rs) (آخرین نسخه Stable)
+
+### اجرای نسخه توسعه:
+```bash
+# کلون کردن ریپازیتوری
+git clone https://github.com/GlitchyProjects/GlitchyLauncher.git
+cd GlitchyLauncher
+
+# نصب پکیج‌های فرانت‌اند
+pnpm install
+
+# اجرای محیط توسعه لوکال لانچر
+pnpm tauri dev
+```
+
+### کامپایل نسخه نهایی (Production Build):
+```bash
+# بیلد فرانت‌اند
+pnpm build
+
+# بیلد باینری Release در Rust
+cargo build --release --manifest-path src-tauri/Cargo.toml
+
+# بیلد نصاب اختصاصی Glitchy Launcher WebSetup (ویندوز)
+powershell -ExecutionPolicy Bypass -File installer/build.ps1 -CopyToDesktop
+```
+
+---
+
+## 📜 لایسنس و شرایط استفاده (License & Disclaimer)
+
+* این پروژه تحت لایسنس **[GNU General Public License v3.0](LICENSE)** منتشر شده است.
+* **سلب مسئولیت:** ماینکرفت (Minecraft) یک علامت تجاری ثبت‌شده متعلق به شرکت **Mojang Synergies AB** و **Microsoft Corporation** است. لانچر گلیچی یک پروژه مستقل بوده و هیچ‌گونه وابستگی رسمی به این شرکت‌ها ندارد.
