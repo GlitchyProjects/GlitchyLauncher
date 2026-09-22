@@ -5,17 +5,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
-$falconExe = Join-Path $root "src-tauri\target\release\falconlauncher.exe"
 $launcherExe = Join-Path $root "src-tauri\target\release\Glitchy Launcher.exe"
 $launcherGz = Join-Path $PSScriptRoot "src-tauri\resources\launcher.gz"
 
-if (Test-Path $falconExe) {
-    Write-Output "Syncing latest build from $falconExe to $launcherExe..."
-    Copy-Item -LiteralPath $falconExe -Destination $launcherExe -Force
-}
-
 if (-not (Test-Path $launcherExe)) {
-    throw "Launcher executable not found at: $launcherExe. Please build the launcher first."
+    throw "Launcher executable not found at: $launcherExe. Please build the launcher first using 'pnpm exec tauri build --no-bundle --ignore-version-mismatches'."
 }
 
 # Compress launcher executable into launcher.gz if not skipped or outdated
