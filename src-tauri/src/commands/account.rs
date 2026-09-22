@@ -9,7 +9,7 @@ use crate::models::error::AppError;
 use crate::services::directory_manager::get_falcon_launcher_directory;
 use crate::AppState;
 
-const PRIMARY_API_URL: &str = "https://api.glitchyteam.ir";
+const PRIMARY_API_URL: &str = "https://glitchy-api.sepideh-help.workers.dev";
 
 // Anti-Disposable Email Blacklist
 const DISPOSABLE_EMAIL_DOMAINS: &[&str] = &[
@@ -197,7 +197,7 @@ fn clear_session() {
 
 fn build_client(timeout_secs: u64) -> reqwest::Client {
     reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(2))
+        .connect_timeout(Duration::from_secs(5))
         .timeout(Duration::from_secs(timeout_secs))
         .build()
         .unwrap_or_else(|_| reqwest::Client::new())
@@ -208,7 +208,7 @@ async fn post_json<T: Serialize, R: for<'de> Deserialize<'de>>(
     body: &T,
     token: Option<&str>,
 ) -> Result<R, AppError> {
-    let client = build_client(3);
+    let client = build_client(8);
     let url = format!("{}{}", PRIMARY_API_URL, endpoint);
     let mut req = client.post(&url).header(USER_AGENT, "GlitchyLauncher/1.3.1");
     if let Some(tok) = token {
@@ -229,7 +229,7 @@ async fn get_json<R: for<'de> Deserialize<'de>>(
     endpoint: &str,
     token: Option<&str>,
 ) -> Result<R, AppError> {
-    let client = build_client(3);
+    let client = build_client(8);
     let url = format!("{}{}", PRIMARY_API_URL, endpoint);
     let mut req = client.get(&url).header(USER_AGENT, "GlitchyLauncher/1.3.1");
     if let Some(tok) = token {
@@ -308,89 +308,30 @@ pub async fn glitchy_account_register(
     }
 
     let body = RegBody {
-        username: u.clone(),
-        email: em.clone(),
-        password: password.clone(),
+        username: u,
+        email: em,
+        password,
     };
 
-    // Try remote API first if configured
-    if let Ok(res) = post_json::<RegBody, GlitchyAuthResponse>("/api/auth/register", &body, None).await {
-        if res.success {
-            if let (Some(token), Some(user)) = (&res.token, &res.user) {
-                save_session(token, user);
-                sync_with_launcher_profile(&state, &user.username).await;
+    match post_json::<RegBody, GlitchyAuthResponse>("/api/auth/register", &body, None).await {
+        Ok(res) => {
+            if res.success {
+                if let (Some(token), Some(user)) = (&res.token, &res.user) {
+                    save_session(token, user);
+                    sync_with_launcher_profile(&state, &user.username).await;
+                }
             }
+            Ok(res)
         }
-        return Ok(res);
+        Err(_e) => {
+            Ok(GlitchyAuthResponse {
+                success: false,
+                token: None,
+                user: None,
+                error: Some("خطا در برقراری ارتباط با سرور ابری گلیچی. لطفاً اتصال اینترنت خود را بررسی کنید.".to_string()),
+            })
+        }
     }
-
-    // Seamless Local Vault fallback (no server / offline / no domain required)
-    log::info!("Remote API unavailable, registering in local Glitchy vault...");
-    let mut vault = load_vault();
-    if vault.accounts.iter().any(|a| a.username.eq_ignore_ascii_case(&u)) {
-        return Ok(GlitchyAuthResponse {
-            success: false,
-            token: None,
-            user: None,
-            error: Some("این نام کاربری قبلاً ثبت شده است.".to_string()),
-        });
-    }
-    if vault.accounts.iter().any(|a| a.email.eq_ignore_ascii_case(&em)) {
-        return Ok(GlitchyAuthResponse {
-            success: false,
-            token: None,
-            user: None,
-            error: Some("این آدرس ایمیل قبلاً ثبت شده است.".to_string()),
-        });
-    }
-
-    let salt = uuid::Uuid::new_v4().to_string();
-    let password_hash = hash_password(&password, &salt);
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as i64;
-    let user_id = uuid::Uuid::new_v4().to_string();
-
-    let record = LocalAccountRecord {
-        id: user_id.clone(),
-        username: u.clone(),
-        email: em.clone(),
-        password_hash,
-        salt,
-        role: "user".to_string(),
-        badge: "عضو گلیچی".to_string(),
-        skin_data: None,
-        skin_model: "classic".to_string(),
-        cape_data: None,
-        created_at: now,
-    };
-
-    vault.accounts.push(record.clone());
-    save_vault(&vault);
-
-    let token = format!("local_{}", uuid::Uuid::new_v4());
-    let user = GlitchyUser {
-        id: record.id,
-        username: record.username,
-        email: record.email,
-        role: record.role,
-        badge: record.badge,
-        skin_data: record.skin_data,
-        skin_model: record.skin_model,
-        cape_data: record.cape_data,
-        created_at: record.created_at,
-    };
-
-    save_session(&token, &user);
-    sync_with_launcher_profile(&state, &user.username).await;
-
-    Ok(GlitchyAuthResponse {
-        success: true,
-        token: Some(token),
-        user: Some(user),
-        error: None,
-    })
 }
 
 #[command]
@@ -408,67 +349,26 @@ pub async fn glitchy_account_login(
     }
 
     let body = LoginBody {
-        login: clean_login.clone(),
-        password: password.clone(),
+        login: clean_login,
+        password,
     };
 
-    // Try remote API first
-    if let Ok(res) = post_json::<LoginBody, GlitchyAuthResponse>("/api/auth/login", &body, None).await {
-        if res.success {
-            if let (Some(token), Some(user)) = (&res.token, &res.user) {
-                save_session(token, user);
-                sync_with_launcher_profile(&state, &user.username).await;
+    match post_json::<LoginBody, GlitchyAuthResponse>("/api/auth/login", &body, None).await {
+        Ok(res) => {
+            if res.success {
+                if let (Some(token), Some(user)) = (&res.token, &res.user) {
+                    save_session(token, user);
+                    sync_with_launcher_profile(&state, &user.username).await;
+                }
             }
+            Ok(res)
         }
-        return Ok(res);
-    }
-
-    // Seamless Local Vault fallback
-    log::info!("Remote API unavailable, attempting local vault login...");
-    let vault = load_vault();
-    let account = vault.accounts.iter().find(|a| {
-        a.username.eq_ignore_ascii_case(&clean_login) || a.email.eq_ignore_ascii_case(&clean_login)
-    });
-
-    match account {
-        Some(acc) => {
-            let hashed = hash_password(&password, &acc.salt);
-            if hashed == acc.password_hash {
-                let token = format!("local_{}", uuid::Uuid::new_v4());
-                let user = GlitchyUser {
-                    id: acc.id.clone(),
-                    username: acc.username.clone(),
-                    email: acc.email.clone(),
-                    role: acc.role.clone(),
-                    badge: acc.badge.clone(),
-                    skin_data: acc.skin_data.clone(),
-                    skin_model: acc.skin_model.clone(),
-                    cape_data: acc.cape_data.clone(),
-                    created_at: acc.created_at,
-                };
-                save_session(&token, &user);
-                sync_with_launcher_profile(&state, &user.username).await;
-                Ok(GlitchyAuthResponse {
-                    success: true,
-                    token: Some(token),
-                    user: Some(user),
-                    error: None,
-                })
-            } else {
-                Ok(GlitchyAuthResponse {
-                    success: false,
-                    token: None,
-                    user: None,
-                    error: Some("رمز عبور وارد شده نادرست است.".to_string()),
-                })
-            }
-        }
-        None => {
+        Err(_e) => {
             Ok(GlitchyAuthResponse {
                 success: false,
                 token: None,
                 user: None,
-                error: Some("حساب کاربری با این نام کاربری یا ایمیل یافت نشد.".to_string()),
+                error: Some("خطا در برقراری ارتباط با سرور ابری گلیچی. لطفاً اتصال اینترنت خود را بررسی کنید.".to_string()),
             })
         }
     }
@@ -477,12 +377,10 @@ pub async fn glitchy_account_login(
 #[command]
 pub async fn glitchy_account_logout() -> Result<(), AppError> {
     if let Some(session) = load_saved_session() {
-        if !session.token.starts_with("local_") {
-            #[derive(Serialize)]
-            struct EmptyBody {}
-            let _: Result<serde_json::Value, _> =
-                post_json("/api/auth/logout", &EmptyBody {}, Some(&session.token)).await;
-        }
+        #[derive(Serialize)]
+        struct EmptyBody {}
+        let _: Result<serde_json::Value, _> =
+            post_json("/api/auth/logout", &EmptyBody {}, Some(&session.token)).await;
     }
     clear_session();
     Ok(())
@@ -494,10 +392,6 @@ pub async fn glitchy_account_get_current() -> Result<Option<GlitchyUser>, AppErr
         Some(s) => s,
         None => return Ok(None),
     };
-
-    if saved.token.starts_with("local_") {
-        return Ok(Some(saved.user));
-    }
 
     #[derive(Deserialize)]
     struct MeResponse {
@@ -517,7 +411,7 @@ pub async fn glitchy_account_get_current() -> Result<Option<GlitchyUser>, AppErr
             }
         }
         Err(_) => {
-            // Offline fallback: allow cached user session
+            // Offline fallback: allow cached user session so player can play offline if already authenticated
             Ok(Some(saved.user))
         }
     }

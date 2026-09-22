@@ -1,7 +1,7 @@
 name = "glitchy-api"
 main = "src/index.ts"
 compatibility_date = "2024-09-01"
-account_id = "7a17f473129a9a71fa4f35ee04e06bbc"
+account_id = "6ce9af983c9e90da924d810aadba6fea"
 
 [vars]
 ENVIRONMENT = "production"
@@ -9,4 +9,4 @@ ENVIRONMENT = "production"
 [[d1_databases]]
 binding = "DB"
 database_name = "glitchy-db"
-database_id = "glitchy-db"
+database_id = "85f28a90-c8d9-40ae-a5e8-d0aefb740acb"
